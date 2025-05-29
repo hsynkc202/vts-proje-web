@@ -231,6 +231,8 @@
         if (!houseTitle) return;
         const housePrice = prompt('Gecelik fiyat (TL):');
         if (!housePrice) return;
+        const houseLocation = prompt('Ev konumu (şehir):');
+        if (!houseLocation) return;
         const houseImg = prompt('Ev resmi için bir görsel linki girin:');
         if (!houseImg) return;
         const houseDiv = document.createElement('div');
@@ -238,6 +240,7 @@
         houseDiv.innerHTML = `
           <img src="${houseImg}" alt="Tiny House">
           <h3>${houseTitle}</h3>
+          <p>Konum: ${houseLocation}</p>
           <p>Fiyat: ${housePrice} TL / gece</p>
           <button onclick="this.parentElement.remove()">Sil</button>
         `;
