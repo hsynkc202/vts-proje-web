@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tiny House Rezervasyon Sistemi</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>Tiny House Rezervasyon ve Yönetim Sistemi</h1>
+    <nav>
+      <a href="#">Ana Sayfa</a>
+      <a href="#" id="open-login">Giriş</a>
+      <a href="#" id="open-register">Kayıt Ol</a>
+    </nav>
+  </header>
+  <main>
+    <section class="listing">
+      <h2>Evleri Listele</h2>
+      <div class="house-list" id="house-list">
+        <p>Henüz hiç tiny house ilanı eklenmedi.</p>
+      </div>
+      <button id="add-house-btn" style="margin-top:20px; display:none;">Yeni Tiny House Ekle</button>
+    </section>
+    <section class="admin-login modal" id="admin-login" style="display:none">
+      <div class="modal-content">
+        <span class="close" data-modal="admin-login">&times;</span>
+        <h2>Admin Girişi</h2>
+        <form action="/admin/login" method="POST">
+          <input type="email" name="email" placeholder="Admin E-posta" required>
+          <input type="password" name="password" placeholder="Şifre" required>
+          <button type="submit">Admin Giriş</button>
+        </form>
+      </div>
+    </section>
+    <section class="login modal" id="login" style="display:none">
+      <div class="modal-content">
+        <span class="close" data-modal="login">&times;</span>
+        <h2>Kullanıcı Girişi</h2>
+        <form>
+          <label for="role">Rol Seçiniz:</label>
+          <select id="role" name="role" required>
+            <option value="owner">Ev Sahibi</option>
+            <option value="tenant">Kiracı</option>
+          </select>
+          <input type="email" placeholder="E-posta" required>
+          <input type="password" placeholder="Şifre" required>
+          <button type="submit">Giriş</button>
+        </form>
+      </div>
+    </section>
+    <section class="register modal" id="register" style="display:none">
+      <div class="modal-content">
+        <span class="close" data-modal="register">&times;</span>
+        <h2>Kayıt Ol</h2>
+        <form>
+          <input type="text" placeholder="Ad" required>
+          <input type="text" placeholder="Soyad" required>
+          <input type="email" placeholder="E-posta" required>
+          <input type="password" placeholder="Şifre" required>
+          <button type="submit">Kayıt Ol</button>
+        </form>
+      </div>
+    </section>
+    <section class="admin-panel" style="display:none">
+      <h2>Admin Paneli</h2>
+      <div class="dashboard-cards">
+        <div class="card">
+          <h3>Kullanıcı Yönetimi</h3>
+          <ul>
+            <li>Kullanıcı ekle</li>
+            <li>Kullanıcı düzenle</li>
+            <li>Kullanıcı sil</li>
+            <li>Kullanıcıyı pasif/aktif yap</li>
+            <li>Kullanıcı arama/filtreleme</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Rezervasyon Yönetimi</h3>
+          <ul>
+            <li>Tüm rezervasyonları görüntüle</li>
+            <li>Rezervasyon iptal et</li>
+            <li>Rezervasyon detaylarını incele</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>İlan Yönetimi</h3>
+          <ul>
+            <li>Tüm ilanları listele</li>
+            <li>İlan denetle/düzenle/sil</li>
+            <li>Kurallara aykırı ilanları kaldır</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Ödeme ve Raporlama</h3>
+          <ul>
+            <li>Finansal raporları görüntüle</li>
+            <li>İşlem geçmişini incele</li>
+            <li>Kullanıcı ve rezervasyon istatistikleri</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+    <section class="owner-panel" style="display:none">
+      <h2>Ev Sahibi Paneli</h2>
+      <div class="dashboard-cards">
+        <div class="card">
+          <h3>İlan Yönetimi</h3>
+          <ul>
+            <li>Yeni ilan ekle</li>
+            <li>İlan düzenle</li>
+            <li>İlanı pasif/aktif yap</li>
+            <li>İlan sil</li>
+            <li>Fiyat ve uygunluk güncelle</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Rezervasyonlar</h3>
+          <ul>
+            <li>Gelen rezervasyonları gör</li>
+            <li>Rezervasyon kabul/ret</li>
+            <li>Rezervasyon detaylarını incele</li>
+            <li>Geçmiş rezervasyonları görüntüle</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Yorumlar</h3>
+          <ul>
+            <li>Kiracı yorumlarını görüntüle</li>
+            <li>Yorumlara cevap ver</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Gelir Raporları</h3>
+          <ul>
+            <li>Ödeme geçmişini görüntüle</li>
+            <li>Gelir raporlarını incele</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+    <section class="tenant-panel" style="display:none">
+      <h2>Kiracı Paneli</h2>
+      <div class="dashboard-cards">
+        <div class="card">
+          <h3>Ev Ara ve Listele</h3>
+          <ul>
+            <li>Ev ara ve filtrele</li>
+            <li>Ev detaylarını incele</li>
+            <li>Popüler evleri gör</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Rezervasyon Yap</h3>
+          <ul>
+            <li>Tarih seç</li>
+            <li>Rezervasyon oluştur</li>
+            <li>Online ödeme yap</li>
+            <li>Rezervasyon onayını takip et</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Rezervasyonlarım</h3>
+          <ul>
+            <li>Geçmiş rezervasyonları görüntüle</li>
+            <li>Aktif rezervasyonları görüntüle</li>
+            <li>Rezervasyon iptal et</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Yorum ve Puanlama</h3>
+          <ul>
+            <li>Kiraladığı evlere yorum ekle</li>
+            <li>Puan ver</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+    <script>
+      // Modal açma/kapatma
+      document.getElementById('open-login').onclick = function(e) {
+        e.preventDefault();
+        document.getElementById('login').style.display = 'block';
+      };
+      document.getElementById('open-register').onclick = function(e) {
+        e.preventDefault();
+        document.getElementById('register').style.display = 'block';
+      };
+      document.querySelectorAll('.close').forEach(function(btn) {
+        btn.onclick = function() {
+          document.getElementById(btn.getAttribute('data-modal')).style.display = 'none';
+        };
+      });
+      // Giriş yapan kullanıcıya göre ilan ekleme butonunu göster
+      function showAddHouseBtnForRole(role) {
+        const btn = document.getElementById('add-house-btn');
+        if(role === 'owner' || role === 'admin') {
+          btn.style.display = 'inline-block';
+        } else {
+          btn.style.display = 'none';
+        }
+      }
+      // Panel gösterme (giriş sonrası)
+      document.querySelectorAll('.login form, .admin-login form').forEach(form => {
+        form.addEventListener('submit', function(e) {
+          e.preventDefault();
+          const isAdmin = form.closest('section').classList.contains('admin-login');
+          document.getElementById('admin-login').style.display = 'none';
+          document.getElementById('login').style.display = 'none';
+          document.getElementById('register').style.display = 'none';
+          if(isAdmin) {
+            document.querySelector('.admin-panel').style.display = 'block';
+            showAddHouseBtnForRole('admin');
+          } else {
+            const role = form.querySelector('select') ? form.querySelector('select').value : '';
+            if(role === 'owner') {
+              document.querySelector('.owner-panel').style.display = 'block';
+              showAddHouseBtnForRole('owner');
+            } else if(role === 'tenant') {
+              document.querySelector('.tenant-panel').style.display = 'block';
+              showAddHouseBtnForRole('tenant');
+            }
+          }
+        });
+      });
+      // Kullanıcı kendi tiny house ilanını ekleyebilsin (sadece owner ve admin)
+      document.getElementById('add-house-btn').onclick = function() {
+        const houseList = document.getElementById('house-list');
+        const houseTitle = prompt('Ev başlığı:');
+        if (!houseTitle) return;
+        const housePrice = prompt('Gecelik fiyat (TL):');
+        if (!housePrice) return;
+        const houseImg = prompt('Ev resmi için bir görsel linki girin:');
+        if (!houseImg) return;
+        const houseDiv = document.createElement('div');
+        houseDiv.className = 'house';
+        houseDiv.innerHTML = `
+          <img src="${houseImg}" alt="Tiny House">
+          <h3>${houseTitle}</h3>
+          <p>Fiyat: ${housePrice} TL / gece</p>
+          <button onclick="this.parentElement.remove()">Sil</button>
+        `;
+        if(houseList.querySelector('p')) houseList.innerHTML = '';
+        houseList.appendChild(houseDiv);
+      };
+    </script>
+  </main>
+  <footer>
+    <p>&copy; 2025 Tiny House Rezervasyon Sistemi</p>
+  </footer>
+</body>
+</html>
