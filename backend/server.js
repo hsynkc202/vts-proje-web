@@ -9,8 +9,8 @@ app.use(express.json());
 // MySQL veritabanı bağlantısı
 const db = mysql.createConnection({
   host: 'localhost',
-  user: 'root', // MySQL kullanıcı adınızı yazın
-  password: '', // MySQL şifrenizi yazın
+  user: 'vtsuser', // Yeni MySQL kullanıcı adı
+  password: 'vts1234', // Yeni MySQL şifresi
   database: 'tinyhouse_db'
 });
 
@@ -43,6 +43,30 @@ app.post('/api/login', (req, res) => {
       } else {
         res.status(401).json({ success: false, message: 'Geçersiz bilgiler!' });
       }
+    });
+  });
+});
+
+// Kayıt ol endpointi
+app.post('/api/register', (req, res) => {
+  const { first_name, last_name, email, password, role } = req.body;
+  // Rol id'sini bul
+  const roleQuery = 'SELECT id FROM roles WHERE name = ?';
+  db.query(roleQuery, [role], (err, roleResults) => {
+    if (err || roleResults.length === 0) {
+      return res.status(400).json({ success: false, message: 'Geçersiz rol!' });
+    }
+    const roleId = roleResults[0].id;
+    // Kullanıcıyı ekle
+    const insertQuery = 'INSERT INTO users (first_name, last_name, email, password, role_id) VALUES (?, ?, ?, ?, ?)';
+    db.query(insertQuery, [first_name, last_name, email, password, roleId], (err, result) => {
+      if (err) {
+        if (err.code === 'ER_DUP_ENTRY') {
+          return res.status(409).json({ success: false, message: 'Bu e-posta ile zaten bir kullanıcı var!' });
+        }
+        return res.status(500).json({ success: false, message: 'Sunucu hatası!' });
+      }
+      res.json({ success: true, message: 'Kayıt başarılı!' });
     });
   });
 });

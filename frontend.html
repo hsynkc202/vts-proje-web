@@ -247,6 +247,33 @@
         if(houseList.querySelector('p')) houseList.innerHTML = '';
         houseList.appendChild(houseDiv);
       };
+      // Kayıt formunu AJAX ile backend'e gönder
+      document.querySelector('#register form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const inputs = this.querySelectorAll('input');
+        const first_name = inputs[0].value;
+        const last_name = inputs[1].value;
+        const email = inputs[2].value;
+        const password = inputs[3].value;
+        // Varsayılan olarak rol 'tenant' (Kiracı) seçilecek, isterseniz rol seçimi ekleyebilirsiniz
+        const role = 'tenant';
+        fetch('http://localhost:3001/api/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ first_name, last_name, email, password, role })
+        })
+        .then(r => r.json())
+        .then(data => {
+          if(data.success) {
+            alert('Kayıt başarılı! Giriş yapabilirsiniz.');
+            document.getElementById('register').style.display = 'none';
+            document.getElementById('login').style.display = 'block';
+          } else {
+            alert(data.message || 'Kayıt başarısız!');
+          }
+        })
+        .catch(() => alert('Sunucuya bağlanılamadı!'));
+      });
     </script>
   </main>
   <footer>
