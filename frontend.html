@@ -260,8 +260,8 @@
         const last_name = inputs[1].value;
         const email = inputs[2].value;
         const password = inputs[3].value;
-        // Varsayılan olarak rol 'tenant' (Kiracı) seçilecek, isterseniz rol seçimi ekleyebilirsiniz
-        const role = 'tenant';
+        // Varsayılan olarak rol 'user' seçilecek
+        const role = 'user';
         fetch('http://localhost:3001/api/register', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
