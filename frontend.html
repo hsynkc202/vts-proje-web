@@ -13,6 +13,7 @@
       <a href="#">Ana Sayfa</a>
       <a href="#" id="open-login">Giriş</a>
       <a href="#" id="open-register">Kayıt Ol</a>
+      <a href="#" id="open-admin-login">Admin Girişi</a>
     </nav>
   </header>
   <main>
@@ -27,7 +28,7 @@
       <div class="modal-content">
         <span class="close" data-modal="admin-login">&times;</span>
         <h2>Admin Girişi</h2>
-        <form action="/admin/login" method="POST">
+        <form>
           <input type="email" name="email" placeholder="Admin E-posta" required>
           <input type="password" name="password" placeholder="Şifre" required>
           <button type="submit">Admin Giriş</button>
@@ -186,6 +187,10 @@
       document.getElementById('open-register').onclick = function(e) {
         e.preventDefault();
         document.getElementById('register').style.display = 'block';
+      };
+      document.getElementById('open-admin-login').onclick = function(e) {
+        e.preventDefault();
+        document.getElementById('admin-login').style.display = 'block';
       };
       document.querySelectorAll('.close').forEach(function(btn) {
         btn.onclick = function() {
