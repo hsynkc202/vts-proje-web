@@ -10,6 +10,10 @@ CREATE TABLE roles (
     name VARCHAR(50) NOT NULL UNIQUE
 );
 
+-- Varsayılan roller ekle
+INSERT INTO roles (name) VALUES ('admin'), ('user')
+    ON DUPLICATE KEY UPDATE name=name;
+
 -- Kullanıcılar Tablosu
 CREATE TABLE users (
     id INT AUTO_INCREMENT PRIMARY KEY,
