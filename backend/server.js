@@ -26,7 +26,7 @@ db.connect((err) => {
 app.post('/api/login', (req, res) => {
   const { email, password, role } = req.body;
   // role bilgisini almak için önce roles tablosundan id'yi bul
-  const roleQuery = 'SELECT id FROM roles WHERE name = ?';
+  const roleQuery = 'SELECT id FROM roles WHERE rol = ?';
   db.query(roleQuery, [role], (err, roleResults) => {
     if (err || roleResults.length === 0) {
       return res.status(401).json({ success: false, message: 'Geçersiz rol!' });
@@ -51,7 +51,7 @@ app.post('/api/login', (req, res) => {
 app.post('/api/register', (req, res) => {
   const { first_name, last_name, email, password, role } = req.body;
   // Rol id'sini bul
-  const roleQuery = 'SELECT id FROM roles WHERE name = ?';
+  const roleQuery = 'SELECT id FROM roles WHERE rol = ?';
   db.query(roleQuery, [role], (err, roleResults) => {
     if (err || roleResults.length === 0) {
       return res.status(400).json({ success: false, message: 'Geçersiz rol!' });
