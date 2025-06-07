@@ -57,14 +57,20 @@ CREATE TABLE reservations (
     FOREIGN KEY (listing_id) REFERENCES listings(id)
 );
 
--- Yorumlar Tablosu
+-- Yorumlar Tablosu (Bir rezervasyon için bir kullanıcı bir kez yorum yapabilir, ev sahibi cevap verebilir)
 CREATE TABLE reviews (
     id INT AUTO_INCREMENT PRIMARY KEY,
     reservation_id INT NOT NULL,
-    rating INT NOT NULL CHECK (rating BETWEEN 1 AND 5),
+    user_id INT NOT NULL,
+    rating INT NULL CHECK (rating BETWEEN 1 AND 5),
     comment TEXT,
+    is_owner_reply BOOLEAN DEFAULT FALSE,
+    reply_to_review_id INT DEFAULT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (reservation_id) REFERENCES reservations(id)
+    FOREIGN KEY (reservation_id) REFERENCES reservations(id),
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    FOREIGN KEY (reply_to_review_id) REFERENCES reviews(id),
+    UNIQUE (reservation_id, user_id, is_owner_reply)
 );
 
 -- Ödemeler Tablosu

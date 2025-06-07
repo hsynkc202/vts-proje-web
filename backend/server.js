@@ -39,7 +39,8 @@ app.post('/api/login', (req, res) => {
         return res.status(500).json({ success: false, message: 'Sunucu hatası!' });
       }
       if (results.length > 0) {
-        res.json({ success: true, role: role, message: 'Giriş başarılı!' });
+        const user = results[0];
+        res.json({ success: true, role: role, message: 'Giriş başarılı!', user: { id: user.id, first_name: user.first_name, last_name: user.last_name, email: user.email, role_id: user.role_id } });
       } else {
         res.status(401).json({ success: false, message: 'Geçersiz bilgiler!' });
       }
@@ -50,28 +51,30 @@ app.post('/api/login', (req, res) => {
 // Kayıt ol endpointi
 app.post('/api/register', (req, res) => {
   const { first_name, last_name, email, password } = req.body;
-  console.log('Kayıt isteği:', req.body); // Gelen veriyi logla
   // Sadece user rolünün id'sini bul
   const roleQuery = "SELECT id FROM roles WHERE rol = 'user'";
   db.query(roleQuery, (err, roleResults) => {
     if (err || roleResults.length === 0) {
-      console.error('Rol sorgu hatası:', err, roleResults);
       return res.status(400).json({ success: false, message: 'Kullanıcı rolü bulunamadı!' });
     }
     const roleId = roleResults[0].id;
-    console.log('Bulunan user rol id:', roleId);
     // Kullanıcıyı ekle
     const insertQuery = 'INSERT INTO users (first_name, last_name, email, password, role_id) VALUES (?, ?, ?, ?, ?)';
     db.query(insertQuery, [first_name, last_name, email, password, roleId], (err, result) => {
       if (err) {
-        console.error('Kullanıcı ekleme hatası:', err);
         if (err.code === 'ER_DUP_ENTRY') {
           return res.status(409).json({ success: false, message: 'Bu e-posta ile zaten bir kullanıcı var!' });
         }
         return res.status(500).json({ success: false, message: 'Sunucu hatası!' });
       }
-      console.log('Kullanıcı başarıyla eklendi:', result);
-      res.json({ success: true, message: 'Kayıt başarılı!' });
+      // Yeni eklenen kullanıcıyı çek
+      db.query('SELECT * FROM users WHERE id = ?', [result.insertId], (err, userResults) => {
+        if (err || userResults.length === 0) {
+          return res.status(500).json({ success: false, message: 'Kullanıcı eklenemedi!' });
+        }
+        const user = userResults[0];
+        res.json({ success: true, message: 'Kayıt başarılı!', user: { id: user.id, first_name: user.first_name, last_name: user.last_name, email: user.email, role_id: user.role_id } });
+      });
     });
   });
 });
@@ -269,6 +272,60 @@ app.post('/api/admin/login', (req, res) => {
         res.status(401).json({ success: false, message: 'Sadece adminler giriş yapabilir!' });
       }
     });
+  });
+});
+
+// Kiracı veya ev sahibi yorum ekler veya cevap verir
+app.post('/api/reviews', (req, res) => {
+  const { reservation_id, user_id, rating, comment, is_owner_reply, reply_to_review_id } = req.body;
+  // Aynı kullanıcı aynı rezervasyon için birden fazla yorum yapamaz (cevap hariç)
+  if (!is_owner_reply) {
+    db.query('SELECT * FROM reviews WHERE reservation_id = ? AND user_id = ? AND is_owner_reply = 0', [reservation_id, user_id], (err, results) => {
+      if (err) {
+        console.error('Yorum kontrol hatası:', err); // LOG
+        return res.status(500).json({ success: false, message: 'Sunucu hatası!' });
+      }
+      if (results.length > 0) return res.status(400).json({ success: false, message: 'Bu rezervasyon için zaten yorum yaptınız!' });
+      // Yorum ekle
+      db.query('INSERT INTO reviews (reservation_id, user_id, rating, comment, is_owner_reply) VALUES (?, ?, ?, ?, 0)', [reservation_id, user_id, rating, comment], (err, result) => {
+        if (err) {
+          console.error('Yorum ekleme hatası:', err); // LOG
+          return res.status(500).json({ success: false, message: 'Yorum eklenemedi!' });
+        }
+        res.json({ success: true, message: 'Yorum eklendi!' });
+      });
+    });
+  } else {
+    // Ev sahibi cevap ekliyor, sadece bir kez cevap verebilir
+    db.query('SELECT * FROM reviews WHERE id = ? AND is_owner_reply = 0', [reply_to_review_id], (err, parentResults) => {
+      if (err || parentResults.length === 0) {
+        if (err) console.error('Cevaplanacak yorum kontrol hatası:', err); // LOG
+        return res.status(400).json({ success: false, message: 'Cevaplanacak yorum bulunamadı!' });
+      }
+      db.query('SELECT * FROM reviews WHERE reservation_id = ? AND user_id = ? AND is_owner_reply = 1', [reservation_id, user_id], (err, results) => {
+        if (err) {
+          console.error('Ev sahibi cevap kontrol hatası:', err); // LOG
+          return res.status(500).json({ success: false, message: 'Sunucu hatası!' });
+        }
+        if (results.length > 0) return res.status(400).json({ success: false, message: 'Bu yoruma zaten cevap verdiniz!' });
+        db.query('INSERT INTO reviews (reservation_id, user_id, rating, comment, is_owner_reply, reply_to_review_id) VALUES (?, ?, NULL, ?, 1, ?)', [reservation_id, user_id, comment, reply_to_review_id], (err, result) => {
+          if (err) {
+            console.error('Ev sahibi cevap ekleme hatası:', err); // LOG
+            return res.status(500).json({ success: false, message: 'Cevap eklenemedi!' });
+          }
+          res.json({ success: true, message: 'Cevap eklendi!' });
+        });
+      });
+    });
+  }
+});
+
+// API: Belirli bir rezervasyonun yorumlarını getir
+app.get('/api/get-reviews', (req, res) => {
+  const { reservation_id } = req.query;
+  db.query('SELECT * FROM reviews WHERE reservation_id = ?', [reservation_id], (err, results) => {
+    if (err) return res.json({ success: false, reviews: [] });
+    res.json({ success: true, reviews: results });
   });
 });
 

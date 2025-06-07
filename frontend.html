@@ -44,8 +44,8 @@
         <form>
           <label for="role">Rol Seçiniz:</label>
           <select id="role" name="role" required>
-            <option value="owner">Ev Sahibi</option>
-            <option value="tenant">Kiracı</option>
+            <option value="user">Ev Sahibi</option>
+            <option value="user">Kiracı</option>
           </select>
           <input type="email" placeholder="E-posta" required>
           <input type="password" placeholder="Şifre" required>
@@ -338,21 +338,40 @@ function updateAuthUI() {
           }
           const role = form.querySelector('select') ? form.querySelector('select').value : '';
           const email = form.querySelector('input[type=email]').value;
-          const first_name = email.split('@')[0]; // Sadece örnek için
-          if(role === 'owner') {
-            setLoggedInUser({ first_name, role: 'owner', email });
-            document.querySelector('.owner-panel').style.display = 'block';
-            showAddHouseBtnForRole('owner');
-            loadOwnerReservations(email);
-          } else if(role === 'tenant') {
-            setLoggedInUser({ first_name, role: 'tenant', email });
-            document.querySelector('.tenant-panel').style.display = 'block';
-            showAddHouseBtnForRole('tenant');
-            loadTenantReservations(email);
-          }
-          document.getElementById('admin-login').style.display = 'none';
-          document.getElementById('login').style.display = 'none';
-          document.getElementById('register').style.display = 'none';
+          const password = form.querySelector('input[type=password]').value;
+          // Arayüzde seçilen rolü ayrı tut (owner/tenant), backend'e user gönder
+          let uiRole = form.querySelector('select') && form.querySelector('select').selectedIndex === 0 ? 'owner' : 'tenant';
+          fetch('http://localhost:3001/api/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password, role })
+          })
+          .then(r => r.json())
+          .then(data => {
+            if(data.success && data.user) {
+              setLoggedInUser({
+                id: data.user.id,
+                first_name: data.user.first_name,
+                role: uiRole,
+                email: data.user.email
+              });
+              if(uiRole === 'owner') {
+                document.querySelector('.owner-panel').style.display = 'block';
+                showAddHouseBtnForRole('owner');
+                loadOwnerReservations(email);
+              } else if(uiRole === 'tenant') {
+                document.querySelector('.tenant-panel').style.display = 'block';
+                showAddHouseBtnForRole('tenant');
+                loadTenantReservations(email);
+              }
+              document.getElementById('admin-login').style.display = 'none';
+              document.getElementById('login').style.display = 'none';
+              document.getElementById('register').style.display = 'none';
+            } else {
+              alert(data.message || 'Giriş başarısız!');
+            }
+          })
+          .catch(() => alert('Sunucuya bağlanılamadı!'));
         });
       });
       // Kullanıcı kendi tiny house ilanını ekleyebilsin (sadece owner ve admin)
@@ -463,20 +482,27 @@ function updateAuthUI() {
           .then(data => {
             if(!data.success) { alert('Rezervasyonlar alınamadı!'); return; }
             let html = '<h3>Gelen Rezervasyonlar</h3>';
+            const user = getLoggedInUser();
             data.reservations.forEach(r => {
-              html += `<div style='border:1px solid #ccc; margin:8px; padding:8px;'>
+              html += `<div style='border:1px solid #ccc; margin:8px; padding:8px;' id='owner-res-${r.id}'>
                 <b>${r.title}</b> - ${r.start_date} / ${r.end_date} <br>
                 Kiracı: ${r.tenant_first} ${r.tenant_last} <br>
                 Durum: ${r.status} <br>
                 <button onclick="ownerApprove(${r.id})">Onayla</button>
                 <button onclick="ownerReject(${r.id})">Reddet</button>
                 <button onclick="cancelReservation(${r.id})">İptal Et</button>
-              </div>`;
+                <div class='review-section'></div></div>`;
             });
             // Sadece .reservation-list içeriğini güncelle
             const panel = document.querySelector('.owner-panel');
             const resList = panel.querySelector('.reservation-list');
             resList.innerHTML = html;
+            // Yorumları yükle (ev sahibi kendi rezervasyonuna gelen yorumları görebilir ve cevaplayabilir)
+            data.reservations.forEach(r => {
+              const div = document.getElementById('owner-res-' + r.id).querySelector('.review-section');
+              // user.id mutlaka gönderilsin, yoksa buton çıkmaz!
+              showReviews(r.id, user && user.id ? user.id : 0, true, div);
+            });
           });
       }
       function ownerApprove(id) {
@@ -498,8 +524,9 @@ function updateAuthUI() {
           .then(data => {
             if(!data.success) { alert('Rezervasyonlar alınamadı!'); return; }
             let html = '<h3>Rezervasyonlarım</h3>';
+            const user = getLoggedInUser();
             data.reservations.forEach(r => {
-              html += `<div style='border:1px solid #ccc; margin:8px; padding:8px;'>
+              html += `<div style='border:1px solid #ccc; margin:8px; padding:8px;' id='tenant-res-${r.id}'>
                 <b>${r.title}</b> - ${r.start_date} / ${r.end_date} <br>
                 Konum: ${r.location} <br>
                 Durum: ${r.status} <br>
@@ -507,12 +534,17 @@ function updateAuthUI() {
               if(r.status === 'pending') {
                 html += ` <button onclick="editReservation(${r.id}, '${tenant_email}', '${r.start_date}', '${r.end_date}')">Düzenle</button>`;
               }
-              html += `</div>`;
+              html += `<div class='review-section'></div></div>`;
             });
             // Sadece .reservation-list içeriğini güncelle
             const panel = document.querySelector('.tenant-panel');
             const resList = panel.querySelector('.reservation-list');
             resList.innerHTML = html;
+            // Yorumları yükle
+            data.reservations.forEach(r => {
+              const div = document.getElementById('tenant-res-' + r.id).querySelector('.review-section');
+              showReviews(r.id, user ? user.id : 0, false, div);
+            });
           });
       }
       // Kiracı rezervasyonunu düzenle
@@ -548,11 +580,14 @@ function updateAuthUI() {
         })
         .then(function(r) { return r.json(); })
         .then(function(data) {
-          if(data.success) {
-            alert('Kayıt başarılı!');
+          if(data.success && data.user) {
+            setLoggedInUser({
+              id: data.user.id,
+              first_name: data.user.first_name,
+              role: 'user',
+              email: data.user.email
+            });
             document.getElementById('register').style.display = 'none';
-            setLoggedInUser({ first_name, role: 'user', email });
-            // Panel açma
             document.querySelector('.tenant-panel').style.display = 'block';
             showAddHouseBtnForRole('tenant');
             loadTenantReservations(email);
@@ -584,6 +619,66 @@ function updateAuthUI() {
           }
         }
       };
+      // Yorumları göster ve ekle (kiracı ve ev sahibi için)
+function showReviews(reservationId, userId, isOwner, container) {
+  fetch('http://localhost:3001/api/get-reviews?reservation_id=' + reservationId)
+    .then(r => r.json())
+    .then(data => {
+      let html = '<div style="margin-top:10px;">';
+      let userReview = null;
+      let ownerReply = null;
+      if(data.success && data.reviews.length) {
+        data.reviews.forEach(rev => {
+          if(!rev.is_owner_reply) userReview = rev;
+          if(rev.is_owner_reply) ownerReply = rev;
+        });
+        if(userReview) {
+          html += `<b>Yorumunuz:</b> ${userReview.comment} <span style='color:gold;'>${'★'.repeat(userReview.rating)}</span><br>`;
+        }
+        if(ownerReply) {
+          html += `<b>Ev Sahibi Cevabı:</b> ${ownerReply.comment}<br>`;
+        }
+      }
+      // Yorum ekle butonu (sadece bir kez, sadece kiracı ve yorum yoksa)
+      if(!isOwner && !userReview) {
+        html += `<button onclick="addReview(${reservationId}, ${userId})">Yorum Yap</button>`;
+      }
+      // Ev sahibi cevap butonu (sadece bir kez, sadece ev sahibi ve cevap yoksa ve yorum varsa)
+      if(isOwner && userReview && !ownerReply) {
+        html += `<button onclick="replyReview(${reservationId}, ${userId}, ${userReview.id})">Yoruma Cevap Ver</button>`;
+      }
+      html += '</div>';
+      container.innerHTML += html;
+    });
+}
+// Yorum ekle fonksiyonu
+function addReview(reservationId, userId) {
+  const rating = prompt('Puan (1-5):');
+  if(!rating || isNaN(rating) || rating < 1 || rating > 5) return alert('Geçerli bir puan girin!');
+  const comment = prompt('Yorumunuz:');
+  if(!comment) return;
+  fetch('http://localhost:3001/api/reviews', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reservation_id: reservationId, user_id: userId, rating, comment, is_owner_reply: false })
+  })
+  .then(r => r.json())
+  .then(data => { alert(data.message); })
+  .catch(() => alert('Sunucuya bağlanılamadı!'));
+}
+// Ev sahibi cevap fonksiyonu
+function replyReview(reservationId, userId, reviewId) {
+  const comment = prompt('Cevabınız:');
+  if(!comment) return;
+  fetch('http://localhost:3001/api/reviews', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reservation_id: reservationId, user_id: userId, comment, is_owner_reply: true, reply_to_review_id: reviewId })
+  })
+  .then(r => r.json())
+  .then(data => { alert(data.message); })
+  .catch(() => alert('Sunucuya bağlanılamadı!'));
+}
     </script>
   </main>
   <footer>
