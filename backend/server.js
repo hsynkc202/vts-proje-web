@@ -71,6 +71,37 @@ app.post('/api/register', (req, res) => {
   });
 });
 
+// İlan ekle endpointi
+app.post('/api/listings', (req, res) => {
+  const { owner_email, title, description, price, location, photo_url, available_from, available_to } = req.body;
+  // Önce owner_id'yi bul
+  const userQuery = 'SELECT id FROM users WHERE email = ?';
+  db.query(userQuery, [owner_email], (err, userResults) => {
+    if (err || userResults.length === 0) {
+      return res.status(400).json({ success: false, message: 'Ev sahibi bulunamadı!' });
+    }
+    const owner_id = userResults[0].id;
+    const insertQuery = `INSERT INTO listings (owner_id, title, description, price, location, photo_url, available_from, available_to) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
+    db.query(insertQuery, [owner_id, title, description, price, location, photo_url, available_from, available_to], (err, result) => {
+      if (err) {
+        return res.status(500).json({ success: false, message: 'İlan eklenemedi!' });
+      }
+      res.json({ success: true, message: 'İlan başarıyla eklendi!' });
+    });
+  });
+});
+
+// Tüm ilanları listele endpointi
+app.get('/api/listings', (req, res) => {
+  const query = `SELECT l.*, u.first_name, u.last_name FROM listings l JOIN users u ON l.owner_id = u.id WHERE l.status = 'active' ORDER BY l.created_at DESC`;
+  db.query(query, (err, results) => {
+    if (err) {
+      return res.status(500).json({ success: false, message: 'İlanlar alınamadı!' });
+    }
+    res.json({ success: true, listings: results });
+  });
+});
+
 app.listen(3001, () => {
   console.log('Backend API çalışıyor: http://localhost:3001');
 });

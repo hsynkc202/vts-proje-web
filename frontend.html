@@ -231,27 +231,77 @@
       });
       // Kullanıcı kendi tiny house ilanını ekleyebilsin (sadece owner ve admin)
       document.getElementById('add-house-btn').onclick = function() {
-        const houseList = document.getElementById('house-list');
+        // Giriş yapan kullanıcının e-posta adresini iste (örnek amaçlı prompt ile)
+        const owner_email = prompt('Ev sahibi e-posta adresinizi girin (test için):');
+        if (!owner_email) return;
         const houseTitle = prompt('Ev başlığı:');
         if (!houseTitle) return;
+        const houseDesc = prompt('Ev açıklaması:');
+        if (!houseDesc) return;
         const housePrice = prompt('Gecelik fiyat (TL):');
         if (!housePrice) return;
         const houseLocation = prompt('Ev konumu (şehir):');
         if (!houseLocation) return;
         const houseImg = prompt('Ev resmi için bir görsel linki girin:');
         if (!houseImg) return;
-        const houseDiv = document.createElement('div');
-        houseDiv.className = 'house';
-        houseDiv.innerHTML = `
-          <img src="${houseImg}" alt="Tiny House">
-          <h3>${houseTitle}</h3>
-          <p>Konum: ${houseLocation}</p>
-          <p>Fiyat: ${housePrice} TL / gece</p>
-          <button onclick="this.parentElement.remove()">Sil</button>
-        `;
-        if(houseList.querySelector('p')) houseList.innerHTML = '';
-        houseList.appendChild(houseDiv);
+        const availableFrom = prompt('Uygunluk başlangıç tarihi (YYYY-MM-DD):');
+        if (!availableFrom) return;
+        const availableTo = prompt('Uygunluk bitiş tarihi (YYYY-MM-DD):');
+        if (!availableTo) return;
+        fetch('http://localhost:3001/api/listings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            owner_email,
+            title: houseTitle,
+            description: houseDesc,
+            price: housePrice,
+            location: houseLocation,
+            photo_url: houseImg,
+            available_from: availableFrom,
+            available_to: availableTo
+          })
+        })
+        .then(r => r.json())
+        .then(data => {
+          if(data.success) {
+            alert('İlan başarıyla eklendi!');
+            loadListings();
+          } else {
+            alert(data.message || 'İlan eklenemedi!');
+          }
+        })
+        .catch(() => alert('Sunucuya bağlanılamadı!'));
       };
+      // İlanları backend'den çekip listele
+      function loadListings() {
+        fetch('http://localhost:3001/api/listings')
+          .then(r => r.json())
+          .then(data => {
+            const houseList = document.getElementById('house-list');
+            if(!data.success || !data.listings.length) {
+              houseList.innerHTML = '<p>Henüz hiç tiny house ilanı eklenmedi.</p>';
+              return;
+            }
+            houseList.innerHTML = '';
+            data.listings.forEach(listing => {
+              const div = document.createElement('div');
+              div.className = 'house';
+              div.innerHTML = `
+                <img src="${listing.photo_url}" alt="Tiny House">
+                <h3>${listing.title}</h3>
+                <p>Konum: ${listing.location}</p>
+                <p>Fiyat: ${listing.price} TL / gece</p>
+                <p>Sahibi: ${listing.first_name} ${listing.last_name}</p>
+                <p>Açıklama: ${listing.description || ''}</p>
+                <p>Uygunluk: ${listing.available_from} - ${listing.available_to}</p>
+              `;
+              houseList.appendChild(div);
+            });
+          });
+      }
+      // Sayfa yüklendiğinde ilanları getir
+      window.onload = loadListings;
       // Kayıt formunu AJAX ile backend'e gönder
       document.querySelector('#register form').addEventListener('submit', function(e) {
         e.preventDefault();
