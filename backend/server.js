@@ -196,10 +196,26 @@ app.post('/api/reservations/:id/cancel', (req, res) => {
   });
 });
 
-// Admin tüm rezervasyonları görür
+// Admin tüm rezervasyonları görür (duruma ve ev sahibi adına göre filtrelenebilir)
 app.get('/api/admin/reservations', (req, res) => {
-  const query = `SELECT r.*, l.title, l.location, o.first_name AS owner_first, o.last_name AS owner_last, u.first_name AS tenant_first, u.last_name AS tenant_last FROM reservations r JOIN listings l ON r.listing_id = l.id JOIN users o ON l.owner_id = o.id JOIN users u ON r.tenant_id = u.id ORDER BY r.created_at DESC`;
-  db.query(query, (err, results) => {
+  const { status, owner } = req.query;
+  let query = `SELECT r.*, l.title, l.location, o.first_name AS owner_first, o.last_name AS owner_last, u.first_name AS tenant_first, u.last_name AS tenant_last FROM reservations r JOIN listings l ON r.listing_id = l.id JOIN users o ON l.owner_id = o.id JOIN users u ON r.tenant_id = u.id`;
+  const params = [];
+  const filters = [];
+  if (status && status !== 'all') {
+    filters.push('r.status = ?');
+    params.push(status);
+  }
+  if (owner && owner.trim() !== '') {
+    filters.push('(o.first_name LIKE ? OR o.last_name LIKE ? OR CONCAT(o.first_name, " ", o.last_name) LIKE ?)');
+
+    params.push(`%${owner}%`, `%${owner}%`, `%${owner}%`);
+  }
+  if (filters.length > 0) {
+    query += ' WHERE ' + filters.join(' AND ');
+  }
+  query += ' ORDER BY r.created_at DESC';
+  db.query(query, params, (err, results) => {
     if (err) {
       return res.status(500).json({ success: false, message: 'Rezervasyonlar alınamadı!' });
     }

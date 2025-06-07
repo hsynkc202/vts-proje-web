@@ -206,8 +206,103 @@
           btn.style.display = 'none';
         }
       }
+      // Admin: Tüm rezervasyonları gör ve iptal et + filtre + ev sahibi ada göre filtre
+      function loadAdminReservations(status = 'all', owner = '') {
+        fetch('http://localhost:3001/api/admin/reservations?status=' + encodeURIComponent(status) + '&owner=' + encodeURIComponent(owner))
+          .then(function(r){ return r.json(); })
+          .then(function(data){
+            if(!data.success) { alert('Rezervasyonlar alınamadı!'); return; }
+            let html = '<h3>Tüm Rezervasyonlar</h3>';
+            html += `<label for='admin-res-status'>Duruma göre filtrele: </label>
+              <select id='admin-res-status'>
+                <option value='all'>Tümü</option>
+                <option value='pending'>Beklemede</option>
+                <option value='approved'>Onaylandı</option>
+                <option value='rejected'>Reddedildi</option>
+                <option value='cancelled'>İptal Edildi</option>
+                <option value='completed'>Tamamlandı</option>
+              </select>
+              <label for='admin-owner-filter' style='margin-left:16px;'>Ev Sahibi Ada Göre: </label>
+              <input id='admin-owner-filter' type='text' placeholder='Ad veya Soyad' value='${owner || ''}' style='width:120px;'>`;
+            data.reservations.forEach(function(r) {
+              html += `<div style='border:1px solid #ccc; margin:8px; padding:8px;'>
+                <b>${r.title}</b> - ${r.start_date} / ${r.end_date} <br>
+                Kiracı: ${r.tenant_first} ${r.tenant_last} <br>
+                Ev Sahibi: ${r.owner_first} ${r.owner_last} <br>
+                Durum: ${r.status} <br>
+                <button onclick="cancelReservation(${r.id})">İptal Et</button>
+              </div>`;
+            });
+            // Sadece rezervasyon listesini güncelle
+            const panel = document.querySelector('.admin-panel');
+            panel.innerHTML = `<h2>Admin Paneli</h2>` + html;
+            // Filtre değişince tekrar yükle
+            document.getElementById('admin-res-status').onchange = function() {
+              loadAdminReservations(this.value, document.getElementById('admin-owner-filter').value);
+            };
+            document.getElementById('admin-owner-filter').oninput = function() {
+              loadAdminReservations(document.getElementById('admin-res-status').value, this.value);
+            };
+          });
+      }
+      // Oturum yönetimi ve arayüz güncelleme
+function setLoggedInUser(user) {
+  localStorage.setItem('loggedInUser', JSON.stringify(user));
+  updateAuthUI();
+}
+function clearLoggedInUser() {
+  localStorage.removeItem('loggedInUser');
+  updateAuthUI();
+}
+function getLoggedInUser() {
+  try {
+    return JSON.parse(localStorage.getItem('loggedInUser'));
+  } catch { return null; }
+}
+function updateAuthUI() {
+  const user = getLoggedInUser();
+  const nav = document.querySelector('header nav');
+  let userInfo = document.getElementById('user-info');
+  if (!userInfo) {
+    userInfo = document.createElement('span');
+    userInfo.id = 'user-info';
+    nav.appendChild(userInfo);
+  }
+  const loginBtn = document.getElementById('open-login');
+  const registerBtn = document.getElementById('open-register');
+  const adminLoginBtn = document.getElementById('open-admin-login');
+  let logoutBtn = document.getElementById('logout-btn');
+  if (!logoutBtn) {
+    logoutBtn = document.createElement('a');
+    logoutBtn.href = '#';
+    logoutBtn.id = 'logout-btn';
+    logoutBtn.textContent = 'Çıkış Yap';
+    logoutBtn.onclick = function(e) {
+      e.preventDefault();
+      clearLoggedInUser();
+      document.querySelectorAll('.admin-panel, .owner-panel, .tenant-panel').forEach(p=>p.style.display='none');
+      showAddHouseBtnForRole('');
+    };
+    nav.appendChild(logoutBtn);
+  }
+  if (user) {
+    userInfo.textContent = `Hoşgeldin, ${user.first_name}`;
+    loginBtn.style.display = 'none';
+    registerBtn.style.display = 'none';
+    adminLoginBtn.style.display = 'none';
+    logoutBtn.style.display = 'inline-block';
+  } else {
+    userInfo.textContent = '';
+    loginBtn.style.display = 'inline-block';
+    registerBtn.style.display = 'inline-block';
+    adminLoginBtn.style.display = 'inline-block';
+    logoutBtn.style.display = 'none';
+  }
+}
+// Giriş yapan kullanıcı bilgilerini ayarla (örnek: admin girişi sonrası)
+setLoggedInUser({ first_name: 'Admin', role: 'admin' });
       // Panel gösterme (giriş sonrası)
-      document.querySelectorAll('.login form, .admin-login form').forEach(form => {
+      document.querySelectorAll('.login form, .admin-login form').forEach(function(form) {
         form.addEventListener('submit', function(e) {
           e.preventDefault();
           const isAdmin = form.closest('section').classList.contains('admin-login');
@@ -215,17 +310,21 @@
           document.getElementById('login').style.display = 'none';
           document.getElementById('register').style.display = 'none';
           if(isAdmin) {
+            setLoggedInUser({ first_name: 'Admin', role: 'admin' });
             document.querySelector('.admin-panel').style.display = 'block';
             showAddHouseBtnForRole('admin');
             loadAdminReservations();
           } else {
             const role = form.querySelector('select') ? form.querySelector('select').value : '';
             const email = form.querySelector('input[type=email]').value;
+            const first_name = email.split('@')[0]; // Sadece örnek için
             if(role === 'owner') {
+              setLoggedInUser({ first_name, role: 'owner', email });
               document.querySelector('.owner-panel').style.display = 'block';
               showAddHouseBtnForRole('owner');
               loadOwnerReservations(email);
             } else if(role === 'tenant') {
+              setLoggedInUser({ first_name, role: 'tenant', email });
               document.querySelector('.tenant-panel').style.display = 'block';
               showAddHouseBtnForRole('tenant');
               loadTenantReservations(email);
@@ -387,52 +486,6 @@
             document.querySelector('.tenant-panel').innerHTML += html;
           });
       }
-      // Admin: Tüm rezervasyonları gör ve iptal et
-      function loadAdminReservations() {
-        fetch('http://localhost:3001/api/admin/reservations')
-          .then(r=>r.json())
-          .then(data=>{
-            if(!data.success) { alert('Rezervasyonlar alınamadı!'); return; }
-            let html = '<h3>Tüm Rezervasyonlar</h3>';
-            data.reservations.forEach(r => {
-              html += `<div style='border:1px solid #ccc; margin:8px; padding:8px;'>
-                <b>${r.title}</b> - ${r.start_date} / ${r.end_date} <br>
-                Kiracı: ${r.tenant_first} ${r.tenant_last} <br>
-                Ev Sahibi: ${r.owner_first} ${r.owner_last} <br>
-                Durum: ${r.status} <br>
-                <button onclick="cancelReservation(${r.id})">İptal Et</button>
-              </div>`;
-            });
-            document.querySelector('.admin-panel').innerHTML += html;
-          });
-      }
-      // Panel gösterme fonksiyonunu güncelle (giriş sonrası)
-      document.querySelectorAll('.login form, .admin-login form').forEach(form => {
-        form.addEventListener('submit', function(e) {
-          e.preventDefault();
-          const isAdmin = form.closest('section').classList.contains('admin-login');
-          document.getElementById('admin-login').style.display = 'none';
-          document.getElementById('login').style.display = 'none';
-          document.getElementById('register').style.display = 'none';
-          if(isAdmin) {
-            document.querySelector('.admin-panel').style.display = 'block';
-            showAddHouseBtnForRole('admin');
-            loadAdminReservations();
-          } else {
-            const role = form.querySelector('select') ? form.querySelector('select').value : '';
-            const email = form.querySelector('input[type=email]').value;
-            if(role === 'owner') {
-              document.querySelector('.owner-panel').style.display = 'block';
-              showAddHouseBtnForRole('owner');
-              loadOwnerReservations(email);
-            } else if(role === 'tenant') {
-              document.querySelector('.tenant-panel').style.display = 'block';
-              showAddHouseBtnForRole('tenant');
-              loadTenantReservations(email);
-            }
-          }
-        });
-      });
       // Kayıt formu submit işlemi (AJAX ile backend'e gönder)
       document.querySelector('.register form').addEventListener('submit', function(e) {
         e.preventDefault();
@@ -451,15 +504,38 @@
           if(data.success) {
             alert('Kayıt başarılı!');
             document.getElementById('register').style.display = 'none';
+            setLoggedInUser({ first_name, role: 'user', email });
+            // Panel açma
+            document.querySelector('.tenant-panel').style.display = 'block';
+            showAddHouseBtnForRole('tenant');
+            loadTenantReservations(email);
           } else {
             alert(data.message || 'Kayıt başarısız!');
           }
         })
         .catch(function() { alert('Sunucuya bağlanılamadı!'); });
       });
-      // Sayfa yüklendiğinde ilanları getir
+      // Sayfa yüklendiğinde oturum kontrolü ve arayüz güncelle
       window.onload = function() {
+        updateAuthUI();
         loadListings();
+        // Oturum varsa paneli aç
+        const user = getLoggedInUser();
+        if (user) {
+          if (user.role === 'admin') {
+            document.querySelector('.admin-panel').style.display = 'block';
+            showAddHouseBtnForRole('admin');
+            loadAdminReservations();
+          } else if (user.role === 'owner') {
+            document.querySelector('.owner-panel').style.display = 'block';
+            showAddHouseBtnForRole('owner');
+            loadOwnerReservations(user.email);
+          } else {
+            document.querySelector('.tenant-panel').style.display = 'block';
+            showAddHouseBtnForRole('tenant');
+            loadTenantReservations(user.email);
+          }
+        }
       };
     </script>
   </main>
