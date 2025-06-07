@@ -217,14 +217,18 @@
           if(isAdmin) {
             document.querySelector('.admin-panel').style.display = 'block';
             showAddHouseBtnForRole('admin');
+            loadAdminReservations();
           } else {
             const role = form.querySelector('select') ? form.querySelector('select').value : '';
+            const email = form.querySelector('input[type=email]').value;
             if(role === 'owner') {
               document.querySelector('.owner-panel').style.display = 'block';
               showAddHouseBtnForRole('owner');
+              loadOwnerReservations(email);
             } else if(role === 'tenant') {
               document.querySelector('.tenant-panel').style.display = 'block';
               showAddHouseBtnForRole('tenant');
+              loadTenantReservations(email);
             }
           }
         });
@@ -295,39 +299,134 @@
                 <p>Sahibi: ${listing.first_name} ${listing.last_name}</p>
                 <p>Açıklama: ${listing.description || ''}</p>
                 <p>Uygunluk: ${listing.available_from} - ${listing.available_to}</p>
+                <button class="reserve-btn" data-id="${listing.id}">Rezervasyon Yap</button>
               `;
               houseList.appendChild(div);
             });
+            // Rezervasyon butonlarına event ekle
+            document.querySelectorAll('.reserve-btn').forEach(btn => {
+              btn.onclick = function() {
+                const tenant_email = prompt('Kiracı e-posta adresinizi girin:');
+                if (!tenant_email) return;
+                const start_date = prompt('Başlangıç tarihi (YYYY-MM-DD):');
+                if (!start_date) return;
+                const end_date = prompt('Bitiş tarihi (YYYY-MM-DD):');
+                if (!end_date) return;
+                fetch('http://localhost:3001/api/reservations', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    tenant_email,
+                    listing_id: btn.getAttribute('data-id'),
+                    start_date,
+                    end_date
+                  })
+                })
+                .then(r => r.json())
+                .then(data => {
+                  alert(data.message || (data.success ? 'Rezervasyon talebiniz iletildi!' : 'Rezervasyon başarısız!'));
+                })
+                .catch(() => alert('Sunucuya bağlanılamadı!'));
+              };
+            });
           });
       }
-      // Sayfa yüklendiğinde ilanları getir
-      window.onload = loadListings;
-      // Kayıt formunu AJAX ile backend'e gönder
-      document.querySelector('#register form').addEventListener('submit', function(e) {
-        e.preventDefault();
-        const inputs = this.querySelectorAll('input');
-        const first_name = inputs[0].value;
-        const last_name = inputs[1].value;
-        const email = inputs[2].value;
-        const password = inputs[3].value;
-        // Varsayılan olarak rol 'user' seçilecek
-        const role = 'user';
-        fetch('http://localhost:3001/api/register', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ first_name, last_name, email, password, role })
-        })
-        .then(r => r.json())
-        .then(data => {
-          if(data.success) {
-            alert('Kayıt başarılı! Giriş yapabilirsiniz.');
-            document.getElementById('register').style.display = 'none';
-            document.getElementById('login').style.display = 'block';
+
+      // Ev sahibi: Gelen rezervasyonları gör ve onayla/reddet/iptal et
+      function loadOwnerReservations(owner_email) {
+        fetch('http://localhost:3001/api/owner/reservations?owner_email=' + encodeURIComponent(owner_email))
+          .then(r => r.json())
+          .then(data => {
+            if(!data.success) { alert('Rezervasyonlar alınamadı!'); return; }
+            let html = '<h3>Gelen Rezervasyonlar</h3>';
+            data.reservations.forEach(r => {
+              html += `<div style='border:1px solid #ccc; margin:8px; padding:8px;'>
+                <b>${r.title}</b> - ${r.start_date} / ${r.end_date} <br>
+                Kiracı: ${r.tenant_first} ${r.tenant_last} <br>
+                Durum: ${r.status} <br>
+                <button onclick="ownerApprove(${r.id})">Onayla</button>
+                <button onclick="ownerReject(${r.id})">Reddet</button>
+                <button onclick="cancelReservation(${r.id})">İptal Et</button>
+              </div>`;
+            });
+            document.querySelector('.owner-panel').innerHTML += html;
+          });
+      }
+      function ownerApprove(id) {
+        fetch('http://localhost:3001/api/reservations/' + id + '/approve', {method:'POST'})
+          .then(r=>r.json()).then(data=>{alert(data.message);});
+      }
+      function ownerReject(id) {
+        fetch('http://localhost:3001/api/reservations/' + id + '/reject', {method:'POST'})
+          .then(r=>r.json()).then(data=>{alert(data.message);});
+      }
+      function cancelReservation(id) {
+        fetch('http://localhost:3001/api/reservations/' + id + '/cancel', {method:'POST'})
+          .then(r=>r.json()).then(data=>{alert(data.message);});
+      }
+      // Kiracı: Kendi rezervasyonlarını gör ve iptal et
+      function loadTenantReservations(tenant_email) {
+        fetch('http://localhost:3001/api/tenant/reservations?tenant_email=' + encodeURIComponent(tenant_email))
+          .then(r => r.json())
+          .then(data => {
+            if(!data.success) { alert('Rezervasyonlar alınamadı!'); return; }
+            let html = '<h3>Rezervasyonlarım</h3>';
+            data.reservations.forEach(r => {
+              html += `<div style='border:1px solid #ccc; margin:8px; padding:8px;'>
+                <b>${r.title}</b> - ${r.start_date} / ${r.end_date} <br>
+                Konum: ${r.location} <br>
+                Durum: ${r.status} <br>
+                <button onclick="cancelReservation(${r.id})">İptal Et</button>
+              </div>`;
+            });
+            document.querySelector('.tenant-panel').innerHTML += html;
+          });
+      }
+      // Admin: Tüm rezervasyonları gör ve iptal et
+      function loadAdminReservations() {
+        fetch('http://localhost:3001/api/admin/reservations')
+          .then(r=>r.json())
+          .then(data=>{
+            if(!data.success) { alert('Rezervasyonlar alınamadı!'); return; }
+            let html = '<h3>Tüm Rezervasyonlar</h3>';
+            data.reservations.forEach(r => {
+              html += `<div style='border:1px solid #ccc; margin:8px; padding:8px;'>
+                <b>${r.title}</b> - ${r.start_date} / ${r.end_date} <br>
+                Kiracı: ${r.tenant_first} ${r.tenant_last} <br>
+                Ev Sahibi: ${r.owner_first} ${r.owner_last} <br>
+                Durum: ${r.status} <br>
+                <button onclick="cancelReservation(${r.id})">İptal Et</button>
+              </div>`;
+            });
+            document.querySelector('.admin-panel').innerHTML += html;
+          });
+      }
+      // Panel gösterme fonksiyonunu güncelle (giriş sonrası)
+      document.querySelectorAll('.login form, .admin-login form').forEach(form => {
+        form.addEventListener('submit', function(e) {
+          e.preventDefault();
+          const isAdmin = form.closest('section').classList.contains('admin-login');
+          document.getElementById('admin-login').style.display = 'none';
+          document.getElementById('login').style.display = 'none';
+          document.getElementById('register').style.display = 'none';
+          if(isAdmin) {
+            document.querySelector('.admin-panel').style.display = 'block';
+            showAddHouseBtnForRole('admin');
+            loadAdminReservations();
           } else {
-            alert(data.message || 'Kayıt başarısız!');
+            const role = form.querySelector('select') ? form.querySelector('select').value : '';
+            const email = form.querySelector('input[type=email]').value;
+            if(role === 'owner') {
+              document.querySelector('.owner-panel').style.display = 'block';
+              showAddHouseBtnForRole('owner');
+              loadOwnerReservations(email);
+            } else if(role === 'tenant') {
+              document.querySelector('.tenant-panel').style.display = 'block';
+              showAddHouseBtnForRole('tenant');
+              loadTenantReservations(email);
+            }
           }
-        })
-        .catch(() => alert('Sunucuya bağlanılamadı!'));
+        });
       });
     </script>
   </main>
