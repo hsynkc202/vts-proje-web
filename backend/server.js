@@ -223,6 +223,32 @@ app.get('/api/admin/reservations', (req, res) => {
   });
 });
 
+// Kiracı rezervasyonunu günceller (sadece kendi rezervasyonu ve pending durumunda)
+app.put('/api/reservations/:id', (req, res) => {
+  const reservationId = req.params.id;
+  const { tenant_email, start_date, end_date } = req.body;
+  // Önce rezervasyonun sahibini ve durumunu kontrol et
+  db.query('SELECT r.*, u.email FROM reservations r JOIN users u ON r.tenant_id = u.id WHERE r.id = ?', [reservationId], (err, results) => {
+    if (err || results.length === 0) {
+      return res.status(404).json({ success: false, message: 'Rezervasyon bulunamadı!' });
+    }
+    const reservation = results[0];
+    if (reservation.email !== tenant_email) {
+      return res.status(403).json({ success: false, message: 'Sadece kendi rezervasyonunuzu güncelleyebilirsiniz!' });
+    }
+    if (reservation.status !== 'pending') {
+      return res.status(400).json({ success: false, message: 'Sadece beklemede olan rezervasyon güncellenebilir!' });
+    }
+    // Güncelle
+    db.query('UPDATE reservations SET start_date = ?, end_date = ? WHERE id = ?', [start_date, end_date, reservationId], (err, result) => {
+      if (err) {
+        return res.status(500).json({ success: false, message: 'Rezervasyon güncellenemedi!' });
+      }
+      res.json({ success: true, message: 'Rezervasyon güncellendi!' });
+    });
+  });
+});
+
 app.listen(3001, () => {
   console.log('Backend API çalışıyor: http://localhost:3001');
 });
