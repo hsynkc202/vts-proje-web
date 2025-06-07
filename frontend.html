@@ -480,11 +480,32 @@ function updateAuthUI() {
                 <b>${r.title}</b> - ${r.start_date} / ${r.end_date} <br>
                 Konum: ${r.location} <br>
                 Durum: ${r.status} <br>
-                <button onclick="cancelReservation(${r.id})">İptal Et</button>
-              </div>`;
+                <button onclick="cancelReservation(${r.id})">İptal Et</button>`;
+              if(r.status === 'pending') {
+                html += ` <button onclick="editReservation(${r.id}, '${tenant_email}', '${r.start_date}', '${r.end_date}')">Düzenle</button>`;
+              }
+              html += `</div>`;
             });
             document.querySelector('.tenant-panel').innerHTML += html;
           });
+      }
+      // Kiracı rezervasyonunu düzenle
+      function editReservation(id, tenant_email, oldStart, oldEnd) {
+        const start_date = prompt('Yeni başlangıç tarihi (YYYY-MM-DD):', oldStart);
+        if (!start_date) return;
+        const end_date = prompt('Yeni bitiş tarihi (YYYY-MM-DD):', oldEnd);
+        if (!end_date) return;
+        fetch('http://localhost:3001/api/reservations/' + id, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tenant_email, start_date, end_date })
+        })
+        .then(r => r.json())
+        .then(data => {
+          alert(data.message);
+          if(data.success) loadTenantReservations(tenant_email);
+        })
+        .catch(() => alert('Sunucuya bağlanılamadı!'));
       }
       // Kayıt formu submit işlemi (AJAX ile backend'e gönder)
       document.querySelector('.register form').addEventListener('submit', function(e) {
