@@ -25,9 +25,11 @@
       <button id="add-house-btn" style="margin-top:20px; display:none;">Yeni Tiny House Ekle</button>
     </section>
     <section class="admin-login modal" id="admin-login" style="display:none">
-      <div class="modal-content">
-        <span class="close" data-modal="admin-login">&times;</span>
-        <h2>Admin Girişi</h2>
+      <div class="modal-content" style="position:relative;">
+        <div style="display:flex;align-items:center;justify-content:center;gap:12px;width:100%;margin-bottom:18px;">
+          <h2 style="margin:0;">Admin Girişi</h2>
+          <span class="close" data-modal="admin-login" style="cursor:pointer;margin-left:12px;background:#fff;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,0.12);padding:2px 16px 6px 16px;font-size:2em;color:#c00;z-index:10;display:inline-block;">&times;</span>
+        </div>
         <form>
           <input type="email" name="email" placeholder="Admin E-posta" required>
           <input type="password" name="password" placeholder="Şifre" required>
@@ -140,6 +142,7 @@
           </ul>
         </div>
       </div>
+      <div class="reservation-list"></div>
     </section>
     <section class="tenant-panel" style="display:none">
       <h2>Kiracı Paneli</h2>
@@ -177,6 +180,7 @@
           </ul>
         </div>
       </div>
+      <div class="reservation-list"></div>
     </section>
     <script>
       // Modal açma/kapatma
@@ -306,30 +310,49 @@ function updateAuthUI() {
         form.addEventListener('submit', function(e) {
           e.preventDefault();
           const isAdmin = form.closest('section').classList.contains('admin-login');
+          if(isAdmin) {
+            // Admin login: Sadece adminler giriş yapabilsin
+            const email = form.querySelector('input[type=email]').value;
+            const password = form.querySelector('input[type=password]').value;
+            fetch('http://localhost:3001/api/admin/login', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email, password })
+            })
+            .then(r => r.json())
+            .then(data => {
+              if(data.success && data.role === 'admin') {
+                setLoggedInUser({ first_name: 'Admin', role: 'admin', email });
+                document.querySelector('.admin-panel').style.display = 'block';
+                showAddHouseBtnForRole('admin');
+                loadAdminReservations();
+                document.getElementById('admin-login').style.display = 'none';
+                document.getElementById('login').style.display = 'none';
+                document.getElementById('register').style.display = 'none';
+              } else {
+                alert(data.message || 'Sadece adminler giriş yapabilir!');
+              }
+            })
+            .catch(() => alert('Sunucuya bağlanılamadı!'));
+            return;
+          }
+          const role = form.querySelector('select') ? form.querySelector('select').value : '';
+          const email = form.querySelector('input[type=email]').value;
+          const first_name = email.split('@')[0]; // Sadece örnek için
+          if(role === 'owner') {
+            setLoggedInUser({ first_name, role: 'owner', email });
+            document.querySelector('.owner-panel').style.display = 'block';
+            showAddHouseBtnForRole('owner');
+            loadOwnerReservations(email);
+          } else if(role === 'tenant') {
+            setLoggedInUser({ first_name, role: 'tenant', email });
+            document.querySelector('.tenant-panel').style.display = 'block';
+            showAddHouseBtnForRole('tenant');
+            loadTenantReservations(email);
+          }
           document.getElementById('admin-login').style.display = 'none';
           document.getElementById('login').style.display = 'none';
           document.getElementById('register').style.display = 'none';
-          if(isAdmin) {
-            setLoggedInUser({ first_name: 'Admin', role: 'admin' });
-            document.querySelector('.admin-panel').style.display = 'block';
-            showAddHouseBtnForRole('admin');
-            loadAdminReservations();
-          } else {
-            const role = form.querySelector('select') ? form.querySelector('select').value : '';
-            const email = form.querySelector('input[type=email]').value;
-            const first_name = email.split('@')[0]; // Sadece örnek için
-            if(role === 'owner') {
-              setLoggedInUser({ first_name, role: 'owner', email });
-              document.querySelector('.owner-panel').style.display = 'block';
-              showAddHouseBtnForRole('owner');
-              loadOwnerReservations(email);
-            } else if(role === 'tenant') {
-              setLoggedInUser({ first_name, role: 'tenant', email });
-              document.querySelector('.tenant-panel').style.display = 'block';
-              showAddHouseBtnForRole('tenant');
-              loadTenantReservations(email);
-            }
-          }
         });
       });
       // Kullanıcı kendi tiny house ilanını ekleyebilsin (sadece owner ve admin)
@@ -450,10 +473,10 @@ function updateAuthUI() {
                 <button onclick="cancelReservation(${r.id})">İptal Et</button>
               </div>`;
             });
-            // Panel başlığını ve kartları koruyarak sadece rezervasyon listesini güncelle
+            // Sadece .reservation-list içeriğini güncelle
             const panel = document.querySelector('.owner-panel');
-            const dashboard = panel.querySelector('.dashboard-cards');
-            panel.innerHTML = `<h2>Ev Sahibi Paneli</h2>` + dashboard.outerHTML + html;
+            const resList = panel.querySelector('.reservation-list');
+            resList.innerHTML = html;
           });
       }
       function ownerApprove(id) {
@@ -486,7 +509,10 @@ function updateAuthUI() {
               }
               html += `</div>`;
             });
-            document.querySelector('.tenant-panel').innerHTML += html;
+            // Sadece .reservation-list içeriğini güncelle
+            const panel = document.querySelector('.tenant-panel');
+            const resList = panel.querySelector('.reservation-list');
+            resList.innerHTML = html;
           });
       }
       // Kiracı rezervasyonunu düzenle

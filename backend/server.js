@@ -249,6 +249,29 @@ app.put('/api/reservations/:id', (req, res) => {
   });
 });
 
+// ADMIN GİRİŞ ENDPOINTİ: Sadece adminler giriş yapabilsin
+app.post('/api/admin/login', (req, res) => {
+  const { email, password } = req.body;
+  // Admin rolünün id'sini bul
+  db.query("SELECT id FROM roles WHERE rol = 'admin'", (err, roleResults) => {
+    if (err || roleResults.length === 0) {
+      return res.status(500).json({ success: false, message: 'Admin rolü bulunamadı!' });
+    }
+    const adminRoleId = roleResults[0].id;
+    // Sadece admin rolüne sahip kullanıcıyı sorgula
+    db.query('SELECT * FROM users WHERE email = ? AND password = ? AND role_id = ? AND status = \'active\'', [email, password, adminRoleId], (err, results) => {
+      if (err) {
+        return res.status(500).json({ success: false, message: 'Sunucu hatası!' });
+      }
+      if (results.length > 0) {
+        res.json({ success: true, role: 'admin', message: 'Admin girişi başarılı!' });
+      } else {
+        res.status(401).json({ success: false, message: 'Sadece adminler giriş yapabilir!' });
+      }
+    });
+  });
+});
+
 app.listen(3001, () => {
   console.log('Backend API çalışıyor: http://localhost:3001');
 });
