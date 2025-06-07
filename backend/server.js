@@ -49,23 +49,28 @@ app.post('/api/login', (req, res) => {
 
 // Kayıt ol endpointi
 app.post('/api/register', (req, res) => {
-  const { first_name, last_name, email, password, role } = req.body;
-  // Rol id'sini bul
-  const roleQuery = 'SELECT id FROM roles WHERE rol = ?';
-  db.query(roleQuery, [role], (err, roleResults) => {
+  const { first_name, last_name, email, password } = req.body;
+  console.log('Kayıt isteği:', req.body); // Gelen veriyi logla
+  // Sadece user rolünün id'sini bul
+  const roleQuery = "SELECT id FROM roles WHERE rol = 'user'";
+  db.query(roleQuery, (err, roleResults) => {
     if (err || roleResults.length === 0) {
-      return res.status(400).json({ success: false, message: 'Geçersiz rol!' });
+      console.error('Rol sorgu hatası:', err, roleResults);
+      return res.status(400).json({ success: false, message: 'Kullanıcı rolü bulunamadı!' });
     }
     const roleId = roleResults[0].id;
+    console.log('Bulunan user rol id:', roleId);
     // Kullanıcıyı ekle
     const insertQuery = 'INSERT INTO users (first_name, last_name, email, password, role_id) VALUES (?, ?, ?, ?, ?)';
     db.query(insertQuery, [first_name, last_name, email, password, roleId], (err, result) => {
       if (err) {
+        console.error('Kullanıcı ekleme hatası:', err);
         if (err.code === 'ER_DUP_ENTRY') {
           return res.status(409).json({ success: false, message: 'Bu e-posta ile zaten bir kullanıcı var!' });
         }
         return res.status(500).json({ success: false, message: 'Sunucu hatası!' });
       }
+      console.log('Kullanıcı başarıyla eklendi:', result);
       res.json({ success: true, message: 'Kayıt başarılı!' });
     });
   });

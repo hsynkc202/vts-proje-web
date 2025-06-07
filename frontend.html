@@ -433,6 +433,34 @@
           }
         });
       });
+      // Kayıt formu submit işlemi (AJAX ile backend'e gönder)
+      document.querySelector('.register form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const inputs = this.querySelectorAll('input');
+        const first_name = inputs[0].value.trim();
+        const last_name = inputs[1].value.trim();
+        const email = inputs[2].value.trim();
+        const password = inputs[3].value;
+        fetch('http://localhost:3001/api/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ first_name, last_name, email, password })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if(data.success) {
+            alert('Kayıt başarılı!');
+            document.getElementById('register').style.display = 'none';
+          } else {
+            alert(data.message || 'Kayıt başarısız!');
+          }
+        })
+        .catch(function() { alert('Sunucuya bağlanılamadı!'); });
+      });
+      // Sayfa yüklendiğinde ilanları getir
+      window.onload = function() {
+        loadListings();
+      };
     </script>
   </main>
   <footer>
