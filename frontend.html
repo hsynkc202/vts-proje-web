@@ -279,9 +279,11 @@
       };
       // İlanları backend'den çekip listele
       function loadListings() {
+        console.log('loadListings çağrıldı'); // DEBUG
         fetch('http://localhost:3001/api/listings')
           .then(r => r.json())
           .then(data => {
+            console.log('API listings yanıtı:', data); // DEBUG
             const houseList = document.getElementById('house-list');
             if(!data.success || !data.listings.length) {
               houseList.innerHTML = '<p>Henüz hiç tiny house ilanı eklenmedi.</p>';
@@ -349,7 +351,10 @@
                 <button onclick="cancelReservation(${r.id})">İptal Et</button>
               </div>`;
             });
-            document.querySelector('.owner-panel').innerHTML += html;
+            // Panel başlığını ve kartları koruyarak sadece rezervasyon listesini güncelle
+            const panel = document.querySelector('.owner-panel');
+            const dashboard = panel.querySelector('.dashboard-cards');
+            panel.innerHTML = `<h2>Ev Sahibi Paneli</h2>` + dashboard.outerHTML + html;
           });
       }
       function ownerApprove(id) {
