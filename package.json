@@ -1,5 +1,13 @@
 {
   "dependencies": {
-    "mysql2": "^3.14.1"
+    "mysql2": "^3.14.1",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-router-dom": "^7.6.2"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.6",
+    "@types/react-dom": "^19.1.6",
+    "@types/react-router-dom": "^5.3.3"
   }
 }
