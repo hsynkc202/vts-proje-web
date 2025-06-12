@@ -113,3 +113,10 @@ BEGIN
     UPDATE reservations SET status = 'cancelled' WHERE id = res_id;
 END;//
 DELIMITER ;
+
+DELIMITER //
+CREATE PROCEDURE get_active_user_count()
+BEGIN
+    SELECT COUNT(*) AS active_user_count FROM users WHERE status = 'active';
+END;//
+DELIMITER ;

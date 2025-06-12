@@ -329,6 +329,18 @@ app.get('/api/get-reviews', (req, res) => {
   });
 });
 
+// Aktif kullanıcı sayısını döndüren endpoint
+app.get('/api/active-user-count', (req, res) => {
+  db.query('CALL get_active_user_count()', (err, results) => {
+    if (err) {
+      return res.status(500).json({ success: false, message: 'Sunucu hatası!' });
+    }
+    // results[0][0].active_user_count ile erişilir
+    const count = results && results[0] && results[0][0] ? results[0][0].active_user_count : 0;
+    res.json({ success: true, active_user_count: count });
+  });
+});
+
 app.listen(3001, () => {
   console.log('Backend API çalışıyor: http://localhost:3001');
 });

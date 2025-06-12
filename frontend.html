@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <div id="active-user-count" style="position:absolute;top:10px;left:20px;font-size:1em;color:#2e8b57;background:#e0f7fa;padding:4px 12px;border-radius:6px;box-shadow:0 1px 4px rgba(0,0,0,0.05);z-index:10;">Aktif Kullanıcılar: <span id="active-user-span">...</span></div>
   <header>
     <h1>Tiny House Rezervasyon ve Yönetim Sistemi</h1>
     <nav>
@@ -601,6 +602,7 @@ function updateAuthUI() {
       window.onload = function() {
         updateAuthUI();
         loadListings();
+        updateActiveUserCount();
         // Oturum varsa paneli aç
         const user = getLoggedInUser();
         if (user) {
@@ -619,6 +621,17 @@ function updateAuthUI() {
           }
         }
       };
+      // Aktif kullanıcı sayısını çek ve göster
+function updateActiveUserCount() {
+  fetch('http://localhost:3001/api/active-user-count')
+    .then(r => r.json())
+    .then(data => {
+      document.getElementById('active-user-span').textContent = data.success ? data.active_user_count : '?';
+    })
+    .catch(() => {
+      document.getElementById('active-user-span').textContent = '?';
+    });
+}
       // Yorumları göster ve ekle (kiracı ve ev sahibi için)
 function showReviews(reservationId, userId, isOwner, container) {
   fetch('http://localhost:3001/api/get-reviews?reservation_id=' + reservationId)
