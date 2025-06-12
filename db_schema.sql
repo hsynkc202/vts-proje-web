@@ -7,12 +7,12 @@ USE tinyhouse_db;
 -- Roller Tablosu
 CREATE TABLE roles (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(50) NOT NULL UNIQUE
+    rol VARCHAR(50) NOT NULL UNIQUE
 );
 
 -- Varsayılan roller ekle
-INSERT INTO roles (name) VALUES ('admin'), ('user')
-    ON DUPLICATE KEY UPDATE name=name;
+INSERT INTO roles (rol) VALUES ('admin'), ('user')
+    ON DUPLICATE KEY UPDATE rol=rol;
 
 -- Kullanıcılar Tablosu
 CREATE TABLE users (
@@ -118,5 +118,67 @@ DELIMITER //
 CREATE PROCEDURE get_active_user_count()
 BEGIN
     SELECT COUNT(*) AS active_user_count FROM users WHERE status = 'active';
+END;//
+DELIMITER ;
+
+-- Gecelik fiyata göre ödeme hesaplayan fonksiyon
+DELIMITER //
+CREATE FUNCTION calculate_payment_amount(listing_id INT, start_date DATE, end_date DATE) RETURNS DECIMAL(10,2)
+    DETERMINISTIC
+BEGIN
+    DECLARE nights INT;
+    DECLARE price DECIMAL(10,2);
+    SELECT price INTO price FROM listings WHERE id = listing_id;
+    SET nights = DATEDIFF(end_date, start_date);
+    IF nights < 1 THEN SET nights = 1; END IF;
+    RETURN price * nights;
+END;//
+DELIMITER ;
+
+-- Rezervasyon için ödeme kaydı ekleyen prosedür
+DELIMITER //
+CREATE PROCEDURE add_payment_for_reservation(IN res_id INT)
+BEGIN
+    DECLARE l_id INT;
+    DECLARE s_date DATE;
+    DECLARE e_date DATE;
+    DECLARE amount DECIMAL(10,2);
+    SELECT listing_id, start_date, end_date INTO l_id, s_date, e_date FROM reservations WHERE id = res_id;
+    SET amount = calculate_payment_amount(l_id, s_date, e_date);
+    INSERT INTO payments (reservation_id, amount, status) VALUES (res_id, amount, 'pending');
+END;//
+DELIMITER ;
+
+-- Admin için ödemeleri gösteren view
+CREATE OR REPLACE VIEW admin_payments_view AS
+SELECT p.id, p.reservation_id, p.amount, p.payment_date, p.status, r.tenant_id, r.listing_id, r.start_date, r.end_date
+FROM payments p
+JOIN reservations r ON p.reservation_id = r.id;
+
+-- Rezervasyon iptalinde ödeme durumunu güncelleyen trigger
+DELIMITER //
+CREATE TRIGGER update_payment_on_cancel
+AFTER UPDATE ON reservations
+FOR EACH ROW
+BEGIN
+    IF NEW.status = 'cancelled' THEN
+        UPDATE payments SET status = 'refunded' WHERE reservation_id = NEW.id;
+    END IF;
+END;//
+DELIMITER ;
+
+-- Rezervasyon tarihi güncellenirse ödeme tutarını otomatik güncelleyen trigger
+DELIMITER //
+CREATE TRIGGER update_payment_on_reservation_update
+AFTER UPDATE ON reservations
+FOR EACH ROW
+BEGIN
+    IF (NEW.start_date <> OLD.start_date OR NEW.end_date <> OLD.end_date) THEN
+        DECLARE l_id INT;
+        DECLARE new_amount DECIMAL(10,2);
+        SET l_id = NEW.listing_id;
+        SET new_amount = calculate_payment_amount(l_id, NEW.start_date, NEW.end_date);
+        UPDATE payments SET amount = new_amount WHERE reservation_id = NEW.id;
+    END IF;
 END;//
 DELIMITER ;

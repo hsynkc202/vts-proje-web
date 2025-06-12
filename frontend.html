@@ -71,40 +71,40 @@
       <h2>Admin Paneli</h2>
       <div class="dashboard-cards">
         <div class="card">
-          <h3>Kullanıcı Yönetimi</h3>
-          <ul>
-            <li>Kullanıcı ekle</li>
-            <li>Kullanıcı düzenle</li>
-            <li>Kullanıcı sil</li>
-            <li>Kullanıcıyı pasif/aktif yap</li>
-            <li>Kullanıcı arama/filtreleme</li>
-          </ul>
-        </div>
-        <div class="card">
-          <h3>Rezervasyon Yönetimi</h3>
-          <ul>
-            <li>Tüm rezervasyonları görüntüle</li>
-            <li>Rezervasyon iptal et</li>
-            <li>Rezervasyon detaylarını incele</li>
-          </ul>
-        </div>
-        <div class="card">
           <h3>İlan Yönetimi</h3>
           <ul>
-            <li>Tüm ilanları listele</li>
-            <li>İlan denetle/düzenle/sil</li>
-            <li>Kurallara aykırı ilanları kaldır</li>
+            <li>Yeni ilan ekle</li>
+            <li>İlan düzenle</li>
+            <li>İlanı pasif/aktif yap</li>
+            <li>İlan sil</li>
+            <li>Fiyat ve uygunluk güncelle</li>
           </ul>
         </div>
         <div class="card">
-          <h3>Ödeme ve Raporlama</h3>
+          <h3>Rezervasyonlar</h3>
           <ul>
-            <li>Finansal raporları görüntüle</li>
-            <li>İşlem geçmişini incele</li>
-            <li>Kullanıcı ve rezervasyon istatistikleri</li>
+            <li>Gelen rezervasyonları gör</li>
+            <li>Rezervasyon kabul/ret</li>
+            <li>Rezervasyon detaylarını incele</li>
+            <li>Geçmiş rezervasyonları görüntüle</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Yorumlar</h3>
+          <ul>
+            <li>Kiracı yorumlarını görüntüle</li>
+            <li>Yorumlara cevap ver</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Gelir Raporları</h3>
+          <ul>
+            <li>Ödeme geçmişini görüntüle</li>
+            <li>Gelir raporlarını incele</li>
           </ul>
         </div>
       </div>
+      <div id="admin-panel-content"></div>
     </section>
     <section class="owner-panel" style="display:none">
       <h2>Ev Sahibi Paneli</h2>
@@ -250,62 +250,299 @@
             };
           });
       }
+      // Admin paneline ödeme geçmişi tablosu ekle
+      function loadAdminPayments() {
+        fetch('http://localhost:3001/api/admin/payments')
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            if (!data.success) { alert('Ödemeler alınamadı!'); return; }
+            let html = '<h3>Ödeme Geçmişi</h3>';
+            html += `<table style='width:100%;border-collapse:collapse;'>
+              <tr style='background:#e0f7fa;'><th>ID</th><th>Rezervasyon</th><th>Tutar</th><th>Tarih</th><th>Durum</th><th>Başlangıç</th><th>Bitiş</th></tr>`;
+            data.payments.forEach(function(p) {
+              html += `<tr style='border-bottom:1px solid #ccc;'>
+                <td>${p.id}</td>
+                <td>${p.reservation_id}</td>
+                <td>${p.amount} TL</td>
+                <td>${p.payment_date ? p.payment_date.substring(0,16) : ''}</td>
+                <td>${p.status}</td>
+                <td>${p.start_date}</td>
+                <td>${p.end_date}</td>
+              </tr>`;
+            });
+            html += '</table>';
+            const panel = document.querySelector('.admin-panel');
+            panel.innerHTML += html;
+          });
+      }
+      // Admin paneli için kullanıcı yönetimi arayüzü
+function loadAdminUsers(q = '') {
+  fetch('http://localhost:3001/api/admin/users?q=' + encodeURIComponent(q))
+    .then(r => r.json())
+    .then(data => {
+      if (!data.success) { alert('Kullanıcılar alınamadı!'); return; }
+      let html = `<h3>Kullanıcı Yönetimi</h3>
+        <input id='admin-user-search' type='text' placeholder='Ad, Soyad veya E-posta ile ara' value='${q || ''}' style='width:180px;margin-bottom:8px;'>
+        <button onclick='showAddUserForm()'>Yeni Kullanıcı Ekle</button>
+        <table style='width:100%;margin-top:10px;border-collapse:collapse;'>
+        <tr style='background:#e0f7fa;'><th>ID</th><th>Ad</th><th>Soyad</th><th>E-posta</th><th>Durum</th><th>Rol</th><th>İşlem</th></tr>`;
+      data.users.forEach(u => {
+        html += `<tr style='border-bottom:1px solid #ccc;'>
+          <td>${u.id}</td>
+          <td>${u.first_name}</td>
+          <td>${u.last_name}</td>
+          <td>${u.email}</td>
+          <td>${u.status}</td>
+          <td>${u.role_id}</td>
+          <td>
+            <button onclick='setUserStatus(${u.id}, "active")'>Aktif</button>
+            <button onclick='setUserStatus(${u.id}, "passive")'>Pasif</button>
+            <button onclick='deleteUser(${u.id})'>Sil</button>
+          </td>
+        </tr>`;
+      });
+      html += '</table>';
+      document.querySelector('.admin-panel').innerHTML = html;
+      document.getElementById('admin-user-search').oninput = function() {
+        loadAdminUsers(this.value);
+      };
+    });
+}
+function setUserStatus(id, status) {
+  fetch('http://localhost:3001/api/admin/users/' + id + '/status', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status })
+  })
+  .then(r => r.json())
+  .then(data => { alert(data.message); loadAdminUsers(); });
+}
+function deleteUser(id) {
+  if (!confirm('Kullanıcı ve rezervasyonları silinsin mi?')) return;
+  fetch('http://localhost:3001/api/admin/users/' + id, { method: 'DELETE' })
+    .then(r => r.json())
+    .then(data => { alert(data.message); loadAdminUsers(); });
+}
+function showAddUserForm() {
+  let html = `<h3>Yeni Kullanıcı Ekle</h3>
+    <form id='add-user-form'>
+      <input type='text' name='first_name' placeholder='Ad' required><br>
+      <input type='text' name='last_name' placeholder='Soyad' required><br>
+      <input type='email' name='email' placeholder='E-posta' required><br>
+      <input type='password' name='password' placeholder='Şifre' required><br>
+      <select name='role'><option value='user'>user</option><option value='admin'>admin</option></select><br>
+      <button type='submit'>Ekle</button>
+      <button type='button' onclick='loadAdminUsers()'>İptal</button>
+    </form>`;
+  document.querySelector('.admin-panel').innerHTML = html;
+  document.getElementById('add-user-form').onsubmit = function(e) {
+    e.preventDefault();
+    const fd = new FormData(this);
+    const data = {};
+    fd.forEach((v, k) => data[k] = v);
+    fetch('http://localhost:3001/api/admin/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    })
+    .then(r => r.json())
+    .then(data => { alert(data.message); loadAdminUsers(); });
+  };
+}
+// Admin paneli sekmeli yapı
+function renderAdminPanelTabs() {
+  const panel = document.querySelector('.admin-panel');
+  panel.innerHTML = `
+    <h2>Admin Paneli</h2>
+    <div style='margin-bottom:18px;'>
+      <button id='admin-tab-users'>Kullanıcı Yönetimi</button>
+      <button id='admin-tab-res'>Rezervasyon Yönetimi</button>
+      <button id='admin-tab-payments'>Ödeme Yönetimi</button>
+    </div>
+    <div id='admin-panel-content'></div>
+  `;
+  document.getElementById('admin-tab-users').onclick = function() {
+    loadAdminUsersTab();
+  };
+  document.getElementById('admin-tab-res').onclick = function() {
+    loadAdminReservationsTab();
+  };
+  document.getElementById('admin-tab-payments').onclick = function() {
+    loadAdminPaymentsTab();
+  };
+}
+function loadAdminUsersTab() {
+  loadAdminUsers('', true);
+}
+function loadAdminReservationsTab() {
+  loadAdminReservations('all', '', true);
+}
+function loadAdminPaymentsTab() {
+  loadAdminPayments(true);
+}
+// loadAdminUsers fonksiyonunu güncelle: panel yerine #admin-panel-content'e yazsın
+function loadAdminUsers(q = '', tabMode = false) {
+  fetch('http://localhost:3001/api/admin/users?q=' + encodeURIComponent(q))
+    .then(r => r.json())
+    .then(data => {
+      if (!data.success) { alert('Kullanıcılar alınamadı!'); return; }
+      let html = `<h3>Kullanıcı Yönetimi</h3>
+        <input id='admin-user-search' type='text' placeholder='Ad, Soyad veya E-posta ile ara' value='${q || ''}' style='width:180px;margin-bottom:8px;'>
+        <button onclick='showAddUserForm()'>Yeni Kullanıcı Ekle</button>
+        <table style='width:100%;margin-top:10px;border-collapse:collapse;'>
+        <tr style='background:#e0f7fa;'><th>ID</th><th>Ad</th><th>Soyad</th><th>E-posta</th><th>Durum</th><th>Rol</th><th>İşlem</th></tr>`;
+      data.users.forEach(u => {
+        html += `<tr style='border-bottom:1px solid #ccc;'>
+          <td>${u.id}</td>
+          <td>${u.first_name}</td>
+          <td>${u.last_name}</td>
+          <td>${u.email}</td>
+          <td>${u.status}</td>
+          <td>${u.role_id}</td>
+          <td>
+            <button onclick='setUserStatus(${u.id}, "active")'>Aktif</button>
+            <button onclick='setUserStatus(${u.id}, "passive")'>Pasif</button>
+            <button onclick='deleteUser(${u.id})'>Sil</button>
+          </td>
+        </tr>`;
+      });
+      html += '</table>';
+      if(tabMode) {
+        document.getElementById('admin-panel-content').innerHTML = html;
+      } else {
+        document.querySelector('.admin-panel').innerHTML = html;
+      }
+      document.getElementById('admin-user-search').oninput = function() {
+        loadAdminUsers(this.value, tabMode);
+      };
+    });
+}
+// loadAdminReservations fonksiyonunu güncelle: panel yerine #admin-panel-content'e yazsın
+function loadAdminReservations(status = 'all', owner = '', tabMode = false) {
+  fetch('http://localhost:3001/api/admin/reservations?status=' + encodeURIComponent(status) + '&owner=' + encodeURIComponent(owner))
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      if(!data.success) { alert('Rezervasyonlar alınamadı!'); return; }
+      let html = '<h3>Tüm Rezervasyonlar</h3>';
+      html += `<label for='admin-res-status'>Duruma göre filtrele: </label>
+        <select id='admin-res-status'>
+          <option value='all'>Tümü</option>
+          <option value='pending'>Beklemede</option>
+          <option value='approved'>Onaylandı</option>
+          <option value='rejected'>Reddedildi</option>
+          <option value='cancelled'>İptal Edildi</option>
+          <option value='completed'>Tamamlandı</option>
+        </select>
+        <label for='admin-owner-filter' style='margin-left:16px;'>Ev Sahibi Ada Göre: </label>
+        <input id='admin-owner-filter' type='text' placeholder='Ad veya Soyad' value='${owner || ''}' style='width:120px;'>`;
+      data.reservations.forEach(function(r) {
+        html += `<div style='border:1px solid #ccc; margin:8px; padding:8px;'>
+          <b>${r.title}</b> - ${r.start_date} / ${r.end_date} <br>
+          Kiracı: ${r.tenant_first} ${r.tenant_last} <br>
+          Ev Sahibi: ${r.owner_first} ${r.owner_last} <br>
+          Durum: ${r.status} <br>
+          <button onclick="cancelReservation(${r.id})">İptal Et</button>
+        </div>`;
+      });
+      if(tabMode) {
+        document.getElementById('admin-panel-content').innerHTML = html;
+      } else {
+        const panel = document.querySelector('.admin-panel');
+        panel.innerHTML = `<h2>Admin Paneli</h2>` + html;
+      }
+      document.getElementById('admin-res-status').onchange = function() {
+        loadAdminReservations(this.value, document.getElementById('admin-owner-filter').value, tabMode);
+      };
+      document.getElementById('admin-owner-filter').oninput = function() {
+        loadAdminReservations(document.getElementById('admin-res-status').value, this.value, tabMode);
+      };
+    });
+}
+// loadAdminPayments fonksiyonunu güncelle: panel yerine #admin-panel-content'e yazsın
+function loadAdminPayments(tabMode = false) {
+  fetch('http://localhost:3001/api/admin/payments')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (!data.success) { alert('Ödemeler alınamadı!'); return; }
+      let html = '<h3>Ödeme Geçmişi</h3>';
+      html += `<table style='width:100%;border-collapse:collapse;'>
+        <tr style='background:#e0f7fa;'><th>ID</th><th>Rezervasyon</th><th>Tutar</th><th>Tarih</th><th>Durum</th><th>Başlangıç</th><th>Bitiş</th></tr>`;
+      data.payments.forEach(function(p) {
+        html += `<tr style='border-bottom:1px solid #ccc;'>
+          <td>${p.id}</td>
+          <td>${p.reservation_id}</td>
+          <td>${p.amount} TL</td>
+          <td>${p.payment_date ? p.payment_date.substring(0,16) : ''}</td>
+          <td>${p.status}</td>
+          <td>${p.start_date}</td>
+          <td>${p.end_date}</td>
+        </tr>`;
+      });
+      html += '</table>';
+      if(tabMode) {
+        document.getElementById('admin-panel-content').innerHTML = html;
+      } else {
+        const panel = document.querySelector('.admin-panel');
+        panel.innerHTML += html;
+      }
+    });
+}
       // Oturum yönetimi ve arayüz güncelleme
-function setLoggedInUser(user) {
-  localStorage.setItem('loggedInUser', JSON.stringify(user));
-  updateAuthUI();
-}
-function clearLoggedInUser() {
-  localStorage.removeItem('loggedInUser');
-  updateAuthUI();
-}
-function getLoggedInUser() {
-  try {
-    return JSON.parse(localStorage.getItem('loggedInUser'));
-  } catch { return null; }
-}
-function updateAuthUI() {
-  const user = getLoggedInUser();
-  const nav = document.querySelector('header nav');
-  let userInfo = document.getElementById('user-info');
-  if (!userInfo) {
-    userInfo = document.createElement('span');
-    userInfo.id = 'user-info';
-    nav.appendChild(userInfo);
-  }
-  const loginBtn = document.getElementById('open-login');
-  const registerBtn = document.getElementById('open-register');
-  const adminLoginBtn = document.getElementById('open-admin-login');
-  let logoutBtn = document.getElementById('logout-btn');
-  if (!logoutBtn) {
-    logoutBtn = document.createElement('a');
-    logoutBtn.href = '#';
-    logoutBtn.id = 'logout-btn';
-    logoutBtn.textContent = 'Çıkış Yap';
-    logoutBtn.onclick = function(e) {
-      e.preventDefault();
-      clearLoggedInUser();
-      document.querySelectorAll('.admin-panel, .owner-panel, .tenant-panel').forEach(p=>p.style.display='none');
-      showAddHouseBtnForRole('');
-    };
-    nav.appendChild(logoutBtn);
-  }
-  if (user) {
-    userInfo.textContent = `Hoşgeldin, ${user.first_name}`;
-    loginBtn.style.display = 'none';
-    registerBtn.style.display = 'none';
-    adminLoginBtn.style.display = 'none';
-    logoutBtn.style.display = 'inline-block';
-  } else {
-    userInfo.textContent = '';
-    loginBtn.style.display = 'inline-block';
-    registerBtn.style.display = 'inline-block';
-    adminLoginBtn.style.display = 'inline-block';
-    logoutBtn.style.display = 'none';
-  }
-}
-// Giriş yapan kullanıcı bilgilerini ayarla (örnek: admin girişi sonrası)
-// setLoggedInUser({ first_name: 'Admin', role: 'admin' });
+      function setLoggedInUser(user) {
+        localStorage.setItem('loggedInUser', JSON.stringify(user));
+        updateAuthUI();
+      }
+      function clearLoggedInUser() {
+        localStorage.removeItem('loggedInUser');
+        updateAuthUI();
+      }
+      function getLoggedInUser() {
+        try {
+          return JSON.parse(localStorage.getItem('loggedInUser'));
+        } catch { return null; }
+      }
+      function updateAuthUI() {
+        const user = getLoggedInUser();
+        const nav = document.querySelector('header nav');
+        let userInfo = document.getElementById('user-info');
+        if (!userInfo) {
+          userInfo = document.createElement('span');
+          userInfo.id = 'user-info';
+          nav.appendChild(userInfo);
+        }
+        const loginBtn = document.getElementById('open-login');
+        const registerBtn = document.getElementById('open-register');
+        const adminLoginBtn = document.getElementById('open-admin-login');
+        let logoutBtn = document.getElementById('logout-btn');
+        if (!logoutBtn) {
+          logoutBtn = document.createElement('a');
+          logoutBtn.href = '#';
+          logoutBtn.id = 'logout-btn';
+          logoutBtn.textContent = 'Çıkış Yap';
+          logoutBtn.onclick = function(e) {
+            e.preventDefault();
+            clearLoggedInUser();
+            document.querySelectorAll('.admin-panel, .owner-panel, .tenant-panel').forEach(p=>p.style.display='none');
+            showAddHouseBtnForRole('');
+          };
+          nav.appendChild(logoutBtn);
+        }
+        if (user) {
+          userInfo.textContent = `Hoşgeldin, ${user.first_name}`;
+          loginBtn.style.display = 'none';
+          registerBtn.style.display = 'none';
+          adminLoginBtn.style.display = 'none';
+          logoutBtn.style.display = 'inline-block';
+        } else {
+          userInfo.textContent = '';
+          loginBtn.style.display = 'inline-block';
+          registerBtn.style.display = 'inline-block';
+          adminLoginBtn.style.display = 'inline-block';
+          logoutBtn.style.display = 'none';
+        }
+      }
+      // Giriş yapan kullanıcı bilgilerini ayarla (örnek: admin girişi sonrası)
+      // setLoggedInUser({ first_name: 'Admin', role: 'admin' });
       // Panel gösterme (giriş sonrası)
       document.querySelectorAll('.login form, .admin-login form').forEach(function(form) {
         form.addEventListener('submit', function(e) {
@@ -326,7 +563,8 @@ function updateAuthUI() {
                 setLoggedInUser({ first_name: 'Admin', role: 'admin', email });
                 document.querySelector('.admin-panel').style.display = 'block';
                 showAddHouseBtnForRole('admin');
-                loadAdminReservations();
+                renderAdminPanelTabs();
+                loadAdminUsersTab(); // Varsayılan olarak kullanıcı yönetimi sekmesi açılsın
                 document.getElementById('admin-login').style.display = 'none';
                 document.getElementById('login').style.display = 'none';
                 document.getElementById('register').style.display = 'none';
@@ -484,7 +722,8 @@ function updateAuthUI() {
             if(!data.success) { alert('Rezervasyonlar alınamadı!'); return; }
             let html = '<h3>Gelen Rezervasyonlar</h3>';
             const user = getLoggedInUser();
-            data.reservations.forEach(r => {
+            // İptal edilen rezervasyonları frontend'de de filtrele
+            data.reservations.filter(r => r.status !== 'cancelled').forEach(r => {
               html += `<div style='border:1px solid #ccc; margin:8px; padding:8px;' id='owner-res-${r.id}'>
                 <b>${r.title}</b> - ${r.start_date} / ${r.end_date} <br>
                 Kiracı: ${r.tenant_first} ${r.tenant_last} <br>
@@ -499,7 +738,7 @@ function updateAuthUI() {
             const resList = panel.querySelector('.reservation-list');
             resList.innerHTML = html;
             // Yorumları yükle (ev sahibi kendi rezervasyonuna gelen yorumları görebilir ve cevaplayabilir)
-            data.reservations.forEach(r => {
+            data.reservations.filter(r => r.status !== 'cancelled').forEach(r => {
               const div = document.getElementById('owner-res-' + r.id).querySelector('.review-section');
               // user.id mutlaka gönderilsin, yoksa buton çıkmaz!
               showReviews(r.id, user && user.id ? user.id : 0, true, div);
@@ -603,13 +842,15 @@ function updateAuthUI() {
         updateAuthUI();
         loadListings();
         updateActiveUserCount();
-        // Oturum varsa paneli aç
         const user = getLoggedInUser();
         if (user) {
           if (user.role === 'admin') {
             document.querySelector('.admin-panel').style.display = 'block';
             showAddHouseBtnForRole('admin');
+            renderAdminPanelTabs();
+            loadAdminUsersTab(); // Varsayılan olarak kullanıcı yönetimi sekmesi açılsın
             loadAdminReservations();
+            loadAdminPayments(); // Ödeme tablosunu yükle
           } else if (user.role === 'owner') {
             document.querySelector('.owner-panel').style.display = 'block';
             showAddHouseBtnForRole('owner');
@@ -624,11 +865,11 @@ function updateAuthUI() {
       // Aktif kullanıcı sayısını çek ve göster
 function updateActiveUserCount() {
   fetch('http://localhost:3001/api/active-user-count')
-    .then(r => r.json())
-    .then(data => {
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
       document.getElementById('active-user-span').textContent = data.success ? data.active_user_count : '?';
     })
-    .catch(() => {
+    .catch(function() {
       document.getElementById('active-user-span').textContent = '?';
     });
 }

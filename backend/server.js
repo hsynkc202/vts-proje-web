@@ -113,20 +113,48 @@ app.get('/api/listings', (req, res) => {
 // Kiracı rezervasyon oluşturur
 app.post('/api/reservations', (req, res) => {
   const { tenant_email, listing_id, start_date, end_date } = req.body;
-  // tenant_id'yi bul
   db.query('SELECT id FROM users WHERE email = ?', [tenant_email], (err, userResults) => {
     if (err || userResults.length === 0) {
       return res.status(400).json({ success: false, message: 'Kiracı bulunamadı!' });
     }
     const tenant_id = userResults[0].id;
-    // Rezervasyon ekle
-    const insertQuery = `INSERT INTO reservations (tenant_id, listing_id, start_date, end_date) VALUES (?, ?, ?, ?)`;
-    db.query(insertQuery, [tenant_id, listing_id, start_date, end_date], (err, result) => {
-      if (err) {
-        return res.status(500).json({ success: false, message: 'Rezervasyon eklenemedi!' });
+    // Önce ilgili listing_id ve price kontrolü
+    db.query('SELECT price FROM listings WHERE id = ?', [listing_id], (err, listingResults) => {
+      if (err || listingResults.length === 0) {
+        return res.status(400).json({ success: false, message: 'İlan bulunamadı veya silinmiş!' });
       }
-      res.json({ success: true, message: 'Rezervasyon talebiniz iletildi!' });
+      const price = listingResults[0].price;
+      if (price === null || price === undefined) {
+        return res.status(400).json({ success: false, message: 'İlan fiyatı eksik! Lütfen ilanı güncelleyin.' });
+      }
+      const insertQuery = `INSERT INTO reservations (tenant_id, listing_id, start_date, end_date) VALUES (?, ?, ?, ?)`;
+      db.query(insertQuery, [tenant_id, listing_id, start_date, end_date], (err, result) => {
+        if (err) {
+          return res.status(500).json({ success: false, message: 'Rezervasyon eklenemedi!' });
+        }
+        // Rezervasyon eklendiyse ödeme kaydı oluştur
+        const reservationId = result.insertId;
+        db.query('CALL add_payment_for_reservation(?)', [reservationId], (err2, result2) => {
+          console.log('add_payment_for_reservation result:', result2);
+          if (err2) {
+            console.error('Ödeme kaydı eklenemedi HATA:', err2); // Hata detayını logla
+            return res.status(500).json({ success: false, message: 'Ödeme kaydı eklenemedi!', error: err2 });
+          }
+          res.json({ success: true, message: 'Rezervasyon ve ödeme kaydı oluşturuldu!' });
+        });
+      });
     });
+  });
+});
+
+// Admin: Tüm ödemeleri listele
+app.get('/api/admin/payments', (req, res) => {
+  db.query('SELECT * FROM admin_payments_view', (err, results) => {
+    if (err) {
+      // Hata varsa, tablo yoksa veya veri yoksa boş dizi dön
+      return res.json({ success: true, payments: [] });
+    }
+    res.json({ success: true, payments: results });
   });
 });
 
@@ -138,7 +166,7 @@ app.get('/api/owner/reservations', (req, res) => {
       return res.status(400).json({ success: false, message: 'Ev sahibi bulunamadı!' });
     }
     const owner_id = userResults[0].id;
-    const query = `SELECT r.*, l.title, u.first_name AS tenant_first, u.last_name AS tenant_last FROM reservations r JOIN listings l ON r.listing_id = l.id JOIN users u ON r.tenant_id = u.id WHERE l.owner_id = ? ORDER BY r.created_at DESC`;
+    const query = `SELECT r.*, l.title, u.first_name AS tenant_first, u.last_name AS tenant_last FROM reservations r JOIN listings l ON r.listing_id = l.id JOIN users u ON r.tenant_id = u.id WHERE l.owner_id = ? AND r.status != 'cancelled' ORDER BY r.created_at DESC`;
     db.query(query, [owner_id], (err, results) => {
       if (err) {
         return res.status(500).json({ success: false, message: 'Rezervasyonlar alınamadı!' });
@@ -258,19 +286,32 @@ app.post('/api/admin/login', (req, res) => {
   // Admin rolünün id'sini bul
   db.query("SELECT id FROM roles WHERE rol = 'admin'", (err, roleResults) => {
     if (err || roleResults.length === 0) {
+      console.error('Admin rolü bulunamadı!', err, roleResults); // LOG
       return res.status(500).json({ success: false, message: 'Admin rolü bulunamadı!' });
     }
     const adminRoleId = roleResults[0].id;
     // Sadece admin rolüne sahip kullanıcıyı sorgula
-    db.query('SELECT * FROM users WHERE email = ? AND password = ? AND role_id = ? AND status = \'active\'', [email, password, adminRoleId], (err, results) => {
+    db.query('SELECT * FROM users WHERE email = ?', [email], (err, userResults) => {
       if (err) {
+        console.error('Kullanıcı sorgu hatası:', err); // LOG
         return res.status(500).json({ success: false, message: 'Sunucu hatası!' });
       }
-      if (results.length > 0) {
-        res.json({ success: true, role: 'admin', message: 'Admin girişi başarılı!' });
-      } else {
-        res.status(401).json({ success: false, message: 'Sadece adminler giriş yapabilir!' });
+      if (userResults.length === 0) {
+        console.warn('Admin email bulunamadı:', email); // LOG
+        return res.status(401).json({ success: false, message: 'Kullanıcı bulunamadı!' });
       }
+      const user = userResults[0];
+      console.log('Admin login denemesi:', { email, password, dbPassword: user.password, role_id: user.role_id, status: user.status }); // LOG
+      if (user.password !== password) {
+        return res.status(401).json({ success: false, message: 'Şifre yanlış!' });
+      }
+      if (user.role_id !== adminRoleId) {
+        return res.status(401).json({ success: false, message: 'Sadece adminler giriş yapabilir!' });
+      }
+      if (user.status !== 'active') {
+        return res.status(401).json({ success: false, message: 'Kullanıcı pasif!' });
+      }
+      res.json({ success: true, role: 'admin', message: 'Admin girişi başarılı!' });
     });
   });
 });
@@ -338,6 +379,69 @@ app.get('/api/active-user-count', (req, res) => {
     // results[0][0].active_user_count ile erişilir
     const count = results && results[0] && results[0][0] ? results[0][0].active_user_count : 0;
     res.json({ success: true, active_user_count: count });
+  });
+});
+
+// ADMIN: Kullanıcı arama (ad, soyad, email ile)
+app.get('/api/admin/users', (req, res) => {
+  const { q } = req.query;
+  let query = 'SELECT * FROM users';
+  const params = [];
+  if (q && q.trim() !== '') {
+    query += ' WHERE first_name LIKE ? OR last_name LIKE ? OR email LIKE ?';
+    params.push(`%${q}%`, `%${q}%`, `%${q}%`);
+  }
+  db.query(query, params, (err, results) => {
+    if (err) return res.status(500).json({ success: false, message: 'Kullanıcılar alınamadı!' });
+    res.json({ success: true, users: results });
+  });
+});
+
+// ADMIN: Kullanıcı ekle
+app.post('/api/admin/users', (req, res) => {
+  const { first_name, last_name, email, password, role } = req.body;
+  db.query('SELECT id FROM roles WHERE rol = ?', [role], (err, roleResults) => {
+    if (err || roleResults.length === 0) {
+      return res.status(400).json({ success: false, message: 'Rol bulunamadı!' });
+    }
+    const roleId = roleResults[0].id;
+    db.query('INSERT INTO users (first_name, last_name, email, password, role_id) VALUES (?, ?, ?, ?, ?)', [first_name, last_name, email, password, roleId], (err, result) => {
+      if (err) {
+        if (err.code === 'ER_DUP_ENTRY') {
+          return res.status(409).json({ success: false, message: 'Bu e-posta ile zaten bir kullanıcı var!' });
+        }
+        return res.status(500).json({ success: false, message: 'Kullanıcı eklenemedi!' });
+      }
+      res.json({ success: true, message: 'Kullanıcı eklendi!' });
+    });
+  });
+});
+
+// ADMIN: Kullanıcıyı aktif/pasif yap
+app.put('/api/admin/users/:id/status', (req, res) => {
+  const userId = req.params.id;
+  const { status } = req.body; // 'active' veya 'passive'
+  db.query('UPDATE users SET status = ? WHERE id = ?', [status, userId], (err, result) => {
+    if (err) return res.status(500).json({ success: false, message: 'Kullanıcı durumu güncellenemedi!' });
+    // Kullanıcı pasif/silindi ise rezervasyonları da pasif yap
+    if (status === 'passive') {
+      db.query('UPDATE reservations SET status = "cancelled" WHERE tenant_id = ? OR listing_id IN (SELECT id FROM listings WHERE owner_id = ?)', [userId, userId]);
+    }
+    res.json({ success: true, message: 'Kullanıcı durumu güncellendi!' });
+  });
+});
+
+// ADMIN: Kullanıcı sil
+app.delete('/api/admin/users/:id', (req, res) => {
+  const userId = req.params.id;
+  // Önce rezervasyonları pasif yap
+  db.query('UPDATE reservations SET status = "cancelled" WHERE tenant_id = ? OR listing_id IN (SELECT id FROM listings WHERE owner_id = ?)', [userId, userId], (err) => {
+    if (err) return res.status(500).json({ success: false, message: 'Rezervasyonlar pasif yapılamadı!' });
+    // Sonra kullanıcıyı sil
+    db.query('DELETE FROM users WHERE id = ?', [userId], (err2) => {
+      if (err2) return res.status(500).json({ success: false, message: 'Kullanıcı silinemedi!' });
+      res.json({ success: true, message: 'Kullanıcı ve rezervasyonları silindi!' });
+    });
   });
 });
 
